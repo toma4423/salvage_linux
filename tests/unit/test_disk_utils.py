@@ -63,9 +63,12 @@ class TestDiskUtils:
         # 結果を検証
         assert len(result) == 3  # sda, sdb, sda1の3つが返るはず
         assert result[0]["name"] == "sda"
-        assert result[1]["name"] == "sdb"
-        assert result[2]["name"] == "sda1"
-        assert mock_logger.info.call_count == 2  # 開始と終了のログが記録されるはず
+        assert result[1]["name"] == "sda1"
+        assert result[2]["name"] == "sdb"
+        assert result[0]["size"] == "100G"
+        assert result[1]["size"] == "100G"
+        assert result[2]["size"] == "50G"
+        assert mock_logger.info.call_count == 1
     
     @patch('subprocess.check_output')
     def test_get_unmounted_disks_subprocess_error(self, mock_check_output, disk_utils, mock_logger):
@@ -131,11 +134,11 @@ class TestDiskUtils:
         
         # 結果を検証
         assert len(result) == 2  # sda1とsdbの2つが返るはず
-        assert result[0]["name"] == "sdb"
-        assert result[0]["mountpoint"] == "/mnt/sdb"
-        assert result[1]["name"] == "sda1"
-        assert result[1]["mountpoint"] == "/mnt/sda1"
-        assert mock_logger.info.call_count == 2  # 開始と終了のログが記録されるはず
+        assert result[0]["name"] == "sda1"
+        assert result[1]["name"] == "sdb"
+        assert result[0]["mountpoint"] == "/mnt/sda1"
+        assert result[1]["mountpoint"] == "/mnt/sdb"
+        assert mock_logger.info.call_count == 1
     
     @patch('subprocess.check_output')
     def test_get_filesystem_type(self, mock_check_output, disk_utils):

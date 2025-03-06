@@ -6,6 +6,9 @@
 import subprocess
 import json
 import os
+import re
+import shlex
+from pathlib import Path
 
 class DiskUtils:
     """
@@ -19,6 +22,15 @@ class DiskUtils:
             logger: ロガーオブジェクト
         """
         self.logger = logger
+        
+        # 保護されたシステムディレクトリのリスト
+        self.protected_dirs = [
+            "/", "/boot", "/etc", "/usr", "/var", "/bin", "/sbin", 
+            "/lib", "/lib64", "/opt", "/root", "/proc", "/sys", "/dev", "/run"
+        ]
+        
+        # 許可されたファイルシステムタイプのリスト
+        self.allowed_fs_types = ["ntfs", "exfat", "ext4", "ext3", "ext2", "fat32", "vfat"]
     
     def get_unmounted_disks(self):
         """
@@ -153,6 +165,47 @@ class DiskUtils:
         except subprocess.CalledProcessError:
             return ""
     
+    def _is_valid_path(self, path):
+        """
+        パスが有効であるかを検証する（セキュリティチェック）
+        
+        Args:
+            path (str): 検証するパス
+            
+        Returns:
+            bool: パスが有効な場合はTrue、そうでない場合はFalse
+        """
+        # パスが空でないことを確認
+        if not path or not isinstance(path, str):
+            return False
+            
+        # 相対パスやパストラバーサルを含むパスを拒否
+        if '..' in path or not path.startswith('/'):
+            return False
+            
+        # コマンドインジェクションを防止するための特殊文字チェック
+        if re.search(r'[;&|`$]', path):
+            return False
+            
+        return True
+    
+    def _is_system_directory(self, path):
+        """
+        パスがシステムディレクトリかどうかを確認する
+        
+        Args:
+            path (str): チェックするパス
+            
+        Returns:
+            bool: システムディレクトリの場合はTrue、そうでない場合はFalse
+        """
+        # 保護されたシステムディレクトリかどうかをチェック
+        for protected_dir in self.protected_dirs:
+            if path == protected_dir or path.startswith(f"{protected_dir}/"):
+                return True
+                
+        return False
+    
     def mount_disk(self, device_path, mount_point=None):
         """
         ディスクをマウント
@@ -164,42 +217,55 @@ class DiskUtils:
         Returns:
             tuple: (成功したかどうか, マウントポイント, エラーメッセージ)
         """
-        # マウントポイントが指定されていない場合は自動生成
-        if mount_point is None:
-            device_name = os.path.basename(device_path)
-            mount_point = f"/mnt/{device_name}"
-        
-        # マウントポイントディレクトリが存在しない場合は作成
-        if not os.path.exists(mount_point):
-            try:
-                os.makedirs(mount_point)
-            except OSError as e:
-                error_msg = f"マウントポイントの作成に失敗しました: {str(e)}"
-                self.logger.error(error_msg)
-                return False, "", error_msg
-        
-        # ファイルシステムタイプを取得
-        fs_type = self.get_filesystem_type(device_path)
-        
-        # マウントコマンドを構築
-        mount_cmd = ["mount"]
-        
-        if fs_type == "ntfs":
-            mount_cmd.extend(["-t", "ntfs-3g"])
-        elif fs_type == "exfat":
-            mount_cmd.extend(["-t", "exfat"])
-        
-        mount_cmd.extend([device_path, mount_point])
+        # パスのバリデーション
+        if not self._is_valid_path(device_path):
+            self.logger.error(f"無効なデバイスパス: {device_path}")
+            return False, "無効なデバイスパスが指定されました。", ""
         
         try:
+            # マウントポイントが指定されていない場合は自動生成
+            if mount_point is None:
+                device_name = os.path.basename(device_path)
+                mount_point = f"/mnt/{device_name}"
+            
+            # マウントポイントのバリデーション
+            if not self._is_valid_path(mount_point):
+                self.logger.error(f"無効なマウントポイント: {mount_point}")
+                return False, "無効なマウントポイントが指定されました。", ""
+            
+            # マウントポイントディレクトリが存在しない場合は作成
+            if not os.path.exists(mount_point):
+                try:
+                    os.makedirs(mount_point)
+                except OSError as e:
+                    error_msg = f"マウントポイントの作成に失敗しました: {str(e)}"
+                    self.logger.error(error_msg)
+                    return False, error_msg, ""
+            
+            # ファイルシステムタイプを取得
+            fs_type = self.get_filesystem_type(device_path)
+            
+            # マウントコマンドを構築
+            mount_cmd = ["mount"]
+            
+            if fs_type == "ntfs":
+                mount_cmd.extend(["-t", "ntfs-3g"])
+            elif fs_type == "exfat":
+                mount_cmd.extend(["-t", "exfat"])
+            
+            mount_cmd.extend([device_path, mount_point])
+            
+            # マウントコマンドを実行
             self.logger.info(f"{device_path} を {mount_point} にマウント中...")
             subprocess.check_call(mount_cmd)
+            
             self.logger.info(f"{device_path} を {mount_point} にマウント成功")
             return True, mount_point, ""
+            
         except subprocess.CalledProcessError as e:
             error_msg = f"{device_path} のマウントに失敗しました: {str(e)}"
             self.logger.error(error_msg)
-            return False, "", error_msg
+            return False, error_msg, ""
     
     def format_disk(self, device_path, fs_type="exfat"):
         """
@@ -212,6 +278,24 @@ class DiskUtils:
         Returns:
             tuple: (成功したかどうか, エラーメッセージ)
         """
+        # パスのバリデーション
+        if not self._is_valid_path(device_path):
+            error_msg = f"無効なデバイスパス: {device_path}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
+        # ファイルシステムタイプのバリデーション
+        if fs_type not in self.allowed_fs_types:
+            error_msg = f"サポートされていないファイルシステムタイプ: {fs_type}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
+        # システムディレクトリをフォーマットから保護
+        if os.path.exists(device_path) and self._is_system_directory(device_path):
+            error_msg = f"システムディレクトリはフォーマットできません: {device_path}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
         # コマンドを構築
         if fs_type.lower() == "ntfs":
             format_cmd = ["mkfs.ntfs", "-f", device_path]
@@ -242,6 +326,18 @@ class DiskUtils:
         Returns:
             tuple: (成功したかどうか, エラーメッセージ)
         """
+        # パスのバリデーション
+        if not self._is_valid_path(mount_point):
+            error_msg = f"無効なマウントポイント: {mount_point}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
+        # システムディレクトリへの権限付与から保護
+        if self._is_system_directory(mount_point):
+            error_msg = f"システムディレクトリへの権限付与はできません: {mount_point}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
         try:
             self.logger.info(f"{mount_point} に権限を付与中...")
             subprocess.check_call(["chmod", "-R", "777", mount_point])
@@ -262,6 +358,12 @@ class DiskUtils:
         Returns:
             tuple: (成功したかどうか, エラーメッセージ)
         """
+        # パスのバリデーション
+        if not self._is_valid_path(mount_point):
+            error_msg = f"無効なマウントポイント: {mount_point}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
         try:
             self.logger.info(f"{mount_point} をファイルマネージャーで開いています...")
             subprocess.Popen(["pcmanfm", mount_point])

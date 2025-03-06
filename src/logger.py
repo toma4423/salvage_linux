@@ -1,51 +1,92 @@
 """
-ログユーティリティモジュール
-アプリケーションのログを管理するためのモジュールです。
+ロガーモジュール
+
+このモジュールは、アプリケーションのログ記録機能を提供します。
 """
 
-import logging
 import os
-from datetime import datetime
+import logging
+import datetime
+import re
+from pathlib import Path
 
 class Logger:
-    """
-    アプリケーションのログを管理するクラス
-    """
+    """ロギングクラス"""
+    
     def __init__(self, log_dir='logs'):
         """
-        ロガーの初期化
+        初期化メソッド
         
         Args:
-            log_dir (str): ログファイルを保存するディレクトリのパス
+            log_dir (str): ログファイルを保存するディレクトリ
         """
+        # ログディレクトリのパスをサニタイズ
+        log_dir = self._sanitize_path(log_dir)
+        
+        # ログファイル名を生成
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"disk_utility_{timestamp}.log"
+        
+        # ログディレクトリを作成
         self.log_dir = log_dir
+        os.makedirs(log_dir, exist_ok=True)
         
-        # ログディレクトリが存在しない場合は作成
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+        # ログファイルパスを設定
+        self.log_file = os.path.join(log_dir, log_filename)
         
-        # 現在の日時を含むログファイル名を生成
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = os.path.join(log_dir, f"disk_utility_{current_time}.log")
-        
-        # ロガーの設定
+        # ロガーを設定
         self.logger = logging.getLogger('disk_utility')
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
         
-        # ファイルハンドラの追加
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.INFO)
+        # ファイルハンドラを設定
+        file_handler = logging.FileHandler(self.log_file)
+        file_handler.setLevel(logging.DEBUG)
         
-        # フォーマッタの設定
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        # フォーマッタを設定
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(formatter)
         
         # ハンドラをロガーに追加
         self.logger.addHandler(file_handler)
+        
+        # 初期ログ
+        self.info("ロガーを初期化しました。")
+    
+    def _sanitize_path(self, path):
+        """
+        パスを安全にサニタイズする
+        
+        Args:
+            path (str): サニタイズするパス
+            
+        Returns:
+            str: サニタイズされたパス
+        """
+        # パスが文字列でない場合はデフォルト値を使用
+        if not isinstance(path, str):
+            return 'logs'
+        
+        # パストラバーサルや特殊文字を含むパスをサニタイズ
+        # '../' などの表現を削除
+        path = re.sub(r'\.\./', '', path)
+        path = re.sub(r'\.\.\\', '', path)
+        
+        # 特殊文字をサニタイズ
+        path = re.sub(r'[;|&`$]', '', path)
+        
+        # 空のパスになった場合はデフォルト値を使用
+        if not path or path.strip() == '':
+            return 'logs'
+        
+        # 絶対パスを相対パスに変換
+        if os.path.isabs(path):
+            path = os.path.relpath(path, '/')
+        
+        return path
     
     def info(self, message):
         """
-        INFO レベルのログを記録
+        情報レベルのログを記録
         
         Args:
             message (str): ログメッセージ
@@ -54,7 +95,7 @@ class Logger:
     
     def warning(self, message):
         """
-        WARNING レベルのログを記録
+        警告レベルのログを記録
         
         Args:
             message (str): ログメッセージ
@@ -63,7 +104,7 @@ class Logger:
     
     def error(self, message):
         """
-        ERROR レベルのログを記録
+        エラーレベルのログを記録
         
         Args:
             message (str): ログメッセージ
@@ -72,7 +113,7 @@ class Logger:
     
     def critical(self, message):
         """
-        CRITICAL レベルのログを記録
+        致命的エラーレベルのログを記録
         
         Args:
             message (str): ログメッセージ
