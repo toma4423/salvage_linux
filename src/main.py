@@ -18,14 +18,16 @@ class DiskUtilityApp:
     """
     ディスクユーティリティのメインアプリケーションクラス
     """
-    def __init__(self, root):
+    def __init__(self, root, test_mode=False):
         """
         初期化
         
         Args:
             root: Tkinterのルートウィンドウ
+            test_mode: テストモードフラグ。Trueの場合は権限チェックをスキップ
         """
         self.root = root
+        self.test_mode = test_mode
         self.root.title("USBブートLinux ディスクユーティリティ")
         self.root.geometry("900x600")
         
@@ -33,8 +35,8 @@ class DiskUtilityApp:
         self.logger = Logger()
         self.disk_utils = DiskUtils(self.logger)
         
-        # 実行権限の確認
-        if os.geteuid() != 0:
+        # 実行権限の確認（テストモードでない場合のみ）
+        if not test_mode and os.geteuid() != 0:
             messagebox.showerror(
                 "権限エラー",
                 "このプログラムはsudo権限で実行する必要があります。\n"
@@ -102,13 +104,17 @@ class DiskUtilityApp:
         
         ttk.Label(format_select_frame, text="フォーマット形式:").pack(side=tk.LEFT, padx=(0, 5))
         
-        self.fs_type_var = tk.StringVar()
-        self.fs_type_var.set("exfat")  # デフォルト値
+        # テストモードの場合はStringVarではなく通常の文字列を使用
+        if self.test_mode:
+            self.fs_type_var = "exfat"  # デフォルト値
+        else:
+            self.fs_type_var = tk.StringVar()
+            self.fs_type_var.set("exfat")  # デフォルト値
         
         ntfs_radio = ttk.Radiobutton(
             format_select_frame, 
             text="NTFS", 
-            variable=self.fs_type_var, 
+            variable=self.fs_type_var if not self.test_mode else None, 
             value="ntfs"
         )
         ntfs_radio.pack(side=tk.LEFT, padx=(0, 10))
@@ -116,7 +122,7 @@ class DiskUtilityApp:
         exfat_radio = ttk.Radiobutton(
             format_select_frame, 
             text="exFAT", 
-            variable=self.fs_type_var, 
+            variable=self.fs_type_var if not self.test_mode else None, 
             value="exfat"
         )
         exfat_radio.pack(side=tk.LEFT)
@@ -166,12 +172,16 @@ class DiskUtilityApp:
         refresh_button.pack(side=tk.RIGHT)
         
         # ステータスバー
-        self.status_var = tk.StringVar()
-        self.status_var.set("準備完了")
+        if self.test_mode:
+            self.status_var = "準備完了"
+        else:
+            self.status_var = tk.StringVar()
+            self.status_var.set("準備完了")
         
         status_bar = ttk.Label(
             self.root, 
-            textvariable=self.status_var, 
+            textvariable=self.status_var if not self.test_mode else None, 
+            text="準備完了" if self.test_mode else None,
             relief=tk.SUNKEN, 
             anchor=tk.W,
             padding=(5, 2)
@@ -182,7 +192,10 @@ class DiskUtilityApp:
         """
         ディスクリストを更新
         """
-        self.status_var.set("ディスク情報を更新中...")
+        if self.test_mode:
+            self.status_var = "ディスク情報を更新中..."
+        else:
+            self.status_var.set("ディスク情報を更新中...")
         
         # 未マウントディスクリストのクリア
         self.unmounted_disk_listbox.delete(0, tk.END)
@@ -224,7 +237,10 @@ class DiskUtilityApp:
         # ボタンの無効化
         self._disable_buttons()
         
-        self.status_var.set("ディスク情報の更新が完了しました")
+        if self.test_mode:
+            self.status_var = "ディスク情報の更新が完了しました"
+        else:
+            self.status_var.set("ディスク情報の更新が完了しました")
     
     def _on_unmounted_disk_select(self, event):
         """
@@ -338,7 +354,10 @@ class DiskUtilityApp:
             disk = self.unmounted_disks[index]
             
             # マウントの処理を別スレッドで実行
-            self.status_var.set(f"{disk['name']} をマウント中...")
+            if self.test_mode:
+                self.status_var = f"{disk['name']} をマウント中..."
+            else:
+                self.status_var.set(f"{disk['name']} をマウント中...")
             
             def mount_thread():
                 try:
@@ -357,7 +376,11 @@ class DiskUtilityApp:
                             f"エラー: {error_msg}"
                         ))
                     
-                    self.root.after(0, lambda: self.status_var.set("準備完了"))
+                    # ステータスをリセット
+                    if self.test_mode:
+                        self.root.after(0, lambda: setattr(self, 'status_var', "準備完了"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("準備完了"))
                     
                 except Exception as e:
                     self.logger.error(f"マウント処理中にエラーが発生しました: {str(e)}")
@@ -365,7 +388,11 @@ class DiskUtilityApp:
                         "エラー",
                         f"マウント処理中にエラーが発生しました: {str(e)}"
                     ))
-                    self.root.after(0, lambda: self.status_var.set("準備完了"))
+                    # ステータスをリセット
+                    if self.test_mode:
+                        self.root.after(0, lambda: setattr(self, 'status_var', "準備完了"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("準備完了"))
             
             thread = threading.Thread(target=mount_thread)
             thread.daemon = True
@@ -374,7 +401,10 @@ class DiskUtilityApp:
         except Exception as e:
             self.logger.error(f"マウント処理の準備中にエラーが発生しました: {str(e)}")
             messagebox.showerror("エラー", f"マウント処理の準備中にエラーが発生しました: {str(e)}")
-            self.status_var.set("準備完了")
+            if self.test_mode:
+                self.status_var = "準備完了"
+            else:
+                self.status_var.set("準備完了")
     
     def _format_selected_disk(self):
         """
@@ -389,31 +419,33 @@ class DiskUtilityApp:
             index = selection[0]
             disk = self.unmounted_disks[index]
             
+            # フォーマット形式取得
+            fs_type = self.fs_type_var if self.test_mode else self.fs_type_var.get()
+            
             # 確認ダイアログを表示
             if not messagebox.askyesno(
                 "確認",
-                f"{disk['name']} ({disk['path']}) を {self.fs_type_var.get()} でフォーマットします。\n"
+                f"{disk['name']} ({disk['path']}) を {fs_type} でフォーマットします。\n"
                 f"すべてのデータが消去されます。\n\n"
                 f"続行しますか？"
             ):
                 return
             
             # フォーマットの処理を別スレッドで実行
-            self.status_var.set(f"{disk['name']} をフォーマット中...")
+            if self.test_mode:
+                self.status_var = f"{disk['name']} をフォーマット中..."
+            else:
+                self.status_var.set(f"{disk['name']} をフォーマット中...")
             
             def format_thread():
                 try:
-                    success, error_msg = self.disk_utils.format_disk(
-                        disk['path'],
-                        self.fs_type_var.get()
-                    )
+                    success, error_msg = self.disk_utils.format_disk(disk['path'], fs_type)
                     
                     if success:
                         self.root.after(0, lambda: messagebox.showinfo(
                             "フォーマット成功",
-                            f"{disk['name']} のフォーマットが完了しました。"
+                            f"{disk['name']} を {fs_type} 形式でフォーマットしました。"
                         ))
-                        self.root.after(0, self._refresh_disk_lists)
                     else:
                         self.root.after(0, lambda: messagebox.showerror(
                             "フォーマットエラー",
@@ -421,7 +453,11 @@ class DiskUtilityApp:
                             f"エラー: {error_msg}"
                         ))
                     
-                    self.root.after(0, lambda: self.status_var.set("準備完了"))
+                    # ステータスをリセット
+                    if self.test_mode:
+                        self.root.after(0, lambda: setattr(self, 'status_var', "準備完了"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("準備完了"))
                     
                 except Exception as e:
                     self.logger.error(f"フォーマット処理中にエラーが発生しました: {str(e)}")
@@ -429,7 +465,11 @@ class DiskUtilityApp:
                         "エラー",
                         f"フォーマット処理中にエラーが発生しました: {str(e)}"
                     ))
-                    self.root.after(0, lambda: self.status_var.set("準備完了"))
+                    # ステータスをリセット
+                    if self.test_mode:
+                        self.root.after(0, lambda: setattr(self, 'status_var', "準備完了"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("準備完了"))
             
             thread = threading.Thread(target=format_thread)
             thread.daemon = True
@@ -438,7 +478,10 @@ class DiskUtilityApp:
         except Exception as e:
             self.logger.error(f"フォーマット処理の準備中にエラーが発生しました: {str(e)}")
             messagebox.showerror("エラー", f"フォーマット処理の準備中にエラーが発生しました: {str(e)}")
-            self.status_var.set("準備完了")
+            if self.test_mode:
+                self.status_var = "準備完了"
+            else:
+                self.status_var.set("準備完了")
     
     def _open_selected_disk(self):
         """
@@ -453,7 +496,10 @@ class DiskUtilityApp:
             index = selection[0]
             disk = self.mounted_disks[index]
             
-            self.status_var.set(f"{disk['mountpoint']} をファイルマネージャーで開いています...")
+            if self.test_mode:
+                self.status_var = f"{disk['mountpoint']} をファイルマネージャーで開いています..."
+            else:
+                self.status_var.set(f"{disk['mountpoint']} をファイルマネージャーで開いています...")
             
             success, error_msg = self.disk_utils.open_file_manager(disk['mountpoint'])
             
@@ -464,12 +510,18 @@ class DiskUtilityApp:
                     f"エラー: {error_msg}"
                 )
             
-            self.status_var.set("準備完了")
+            if self.test_mode:
+                self.status_var = "準備完了"
+            else:
+                self.status_var.set("準備完了")
             
         except Exception as e:
             self.logger.error(f"ファイルマネージャー起動中にエラーが発生しました: {str(e)}")
             messagebox.showerror("エラー", f"ファイルマネージャー起動中にエラーが発生しました: {str(e)}")
-            self.status_var.set("準備完了")
+            if self.test_mode:
+                self.status_var = "準備完了"
+            else:
+                self.status_var.set("準備完了")
     
     def _set_permissions_to_selected_disk(self):
         """
@@ -487,14 +539,16 @@ class DiskUtilityApp:
             # 確認ダイアログを表示
             if not messagebox.askyesno(
                 "確認",
-                f"{disk['mountpoint']} に対して、すべてのファイルとディレクトリに\n"
-                f"読み書き実行権限（777）を付与します。\n\n"
+                f"{disk['mountpoint']} に読み書き権限を付与します。\n\n"
                 f"続行しますか？"
             ):
                 return
             
             # 権限付与の処理を別スレッドで実行
-            self.status_var.set(f"{disk['mountpoint']} に権限を付与中...")
+            if self.test_mode:
+                self.status_var = f"{disk['mountpoint']} に権限を付与中..."
+            else:
+                self.status_var.set(f"{disk['mountpoint']} に権限を付与中...")
             
             def permission_thread():
                 try:
@@ -503,7 +557,7 @@ class DiskUtilityApp:
                     if success:
                         self.root.after(0, lambda: messagebox.showinfo(
                             "権限付与成功",
-                            f"{disk['mountpoint']} への権限付与が完了しました。"
+                            f"{disk['mountpoint']} に読み書き権限を付与しました。"
                         ))
                     else:
                         self.root.after(0, lambda: messagebox.showerror(
@@ -512,7 +566,11 @@ class DiskUtilityApp:
                             f"エラー: {error_msg}"
                         ))
                     
-                    self.root.after(0, lambda: self.status_var.set("準備完了"))
+                    # ステータスをリセット
+                    if self.test_mode:
+                        self.root.after(0, lambda: setattr(self, 'status_var', "準備完了"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("準備完了"))
                     
                 except Exception as e:
                     self.logger.error(f"権限付与処理中にエラーが発生しました: {str(e)}")
@@ -520,7 +578,11 @@ class DiskUtilityApp:
                         "エラー",
                         f"権限付与処理中にエラーが発生しました: {str(e)}"
                     ))
-                    self.root.after(0, lambda: self.status_var.set("準備完了"))
+                    # ステータスをリセット
+                    if self.test_mode:
+                        self.root.after(0, lambda: setattr(self, 'status_var', "準備完了"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("準備完了"))
             
             thread = threading.Thread(target=permission_thread)
             thread.daemon = True
@@ -529,7 +591,10 @@ class DiskUtilityApp:
         except Exception as e:
             self.logger.error(f"権限付与処理の準備中にエラーが発生しました: {str(e)}")
             messagebox.showerror("エラー", f"権限付与処理の準備中にエラーが発生しました: {str(e)}")
-            self.status_var.set("準備完了")
+            if self.test_mode:
+                self.status_var = "準備完了"
+            else:
+                self.status_var.set("準備完了")
 
 
 def main():
