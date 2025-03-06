@@ -13,6 +13,7 @@ import threading
 # インポート文を相対パスに修正
 from src.logger import Logger
 from src.disk_utils import DiskUtils
+from src.version import get_version_info, APP_NAME, __version__
 
 class DiskUtilityApp:
     """
@@ -28,7 +29,10 @@ class DiskUtilityApp:
         """
         self.root = root
         self.test_mode = test_mode
-        self.root.title("USBブートLinux ディスクユーティリティ")
+        
+        # タイトルにバージョン情報を追加
+        self.root.title(get_version_info())
+        
         self.root.geometry("900x600")
         
         # ロガーとディスクユーティリティの初期化
