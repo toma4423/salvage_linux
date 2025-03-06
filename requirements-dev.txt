@@ -1,0 +1,5 @@
+# 開発・テスト用の依存パッケージ
+pytest==7.4.0
+pytest-mock==3.11.1
+pytest-cov==4.1.0
+pyinstaller==6.1.0  # アプリケーションのパッケージング用 
