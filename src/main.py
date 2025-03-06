@@ -9,11 +9,14 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
+import logging
 
 # インポート文を相対パスに修正
 from src.logger import Logger
 from src.disk_utils import DiskUtils
 from src.version import get_version_info, APP_NAME, __version__
+from src.config_manager import ConfigManager
+from src.settings import SettingsDialog
 
 class DiskUtilityApp:
     """
@@ -30,8 +33,11 @@ class DiskUtilityApp:
         self.root = root
         self.test_mode = test_mode
         
+        # 設定マネージャーの初期化
+        self.config_manager = ConfigManager()
+        
         # タイトルにバージョン情報を追加
-        self.root.title(get_version_info())
+        self.root.title(f"{APP_NAME} {get_version_info()}")
         
         # 最小ウィンドウサイズを設定（レイアウト崩れを防止）
         self.root.minsize(800, 600)
@@ -46,19 +52,48 @@ class DiskUtilityApp:
             )
             sys.exit(1)
         
-        # ロガーとディスクユーティリティのインスタンス作成
-        self.logger = Logger()
-        self.disk_utils = DiskUtils(self.logger)
+        # ロガーの初期化 - 設定からログレベルを取得
+        log_dir = os.path.join(os.path.expanduser("~"), ".config", "salvage_linux", "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_level = getattr(logging, self.config_manager.get("log_level", "INFO"), logging.INFO)
+        self.logger = Logger(log_dir, level=log_level)
+        
+        # ディスクユーティリティの初期化 - ConfigManagerを渡す
+        self.disk_utils = DiskUtils(self.logger, self.config_manager)
         
         # 選択されたディスクの保存用変数
         self.selected_unmounted_disk = None
         self.selected_mounted_disk = None
+        
+        # メニューバーの作成
+        self._create_menu()
         
         # GUIの構築
         self._build_gui()
         
         # 起動時にディスクリストを更新
         self._refresh_disk_lists()
+    
+    def _create_menu(self):
+        """
+        メニューバーの作成
+        """
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
+        
+        # ファイルメニュー
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="ファイル", menu=file_menu)
+        file_menu.add_command(label="更新", command=self._refresh_disk_lists)
+        file_menu.add_separator()
+        file_menu.add_command(label="設定", command=self.open_settings_dialog)
+        file_menu.add_separator()
+        file_menu.add_command(label="終了", command=self.root.quit)
+        
+        # ヘルプメニュー
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="ヘルプ", menu=help_menu)
+        help_menu.add_command(label="バージョン情報", command=self._show_about)
     
     def _build_gui(self):
         """
@@ -642,6 +677,29 @@ class DiskUtilityApp:
                 self.status_var = "準備完了"
             else:
                 self.status_var.set("準備完了")
+
+    def _show_about(self):
+        """
+        バージョン情報を表示
+        """
+        version_info = get_version_info()
+        messagebox.showinfo(
+            "バージョン情報",
+            f"{APP_NAME}\n"
+            f"バージョン: {__version__}\n\n"
+            "開発者: toma4423\n"
+            "ライセンス: MIT\n\n"
+            "USBディスクのマウント、フォーマット、権限付与を\n"
+            "GUI操作で簡単に行うためのツールです。"
+        )
+
+    def open_settings_dialog(self):
+        """
+        設定ダイアログを開く
+        """
+        SettingsDialog(self.root, self.config_manager, self.logger)
+        # 設定変更後にディスクリストを更新
+        self._refresh_disk_lists()
 
 
 def main():

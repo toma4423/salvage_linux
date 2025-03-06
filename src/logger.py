@@ -11,14 +11,20 @@ import re
 from pathlib import Path
 
 class Logger:
-    """ロギングクラス"""
+    """
+    ロギングクラス
     
-    def __init__(self, log_dir='logs'):
+    アプリケーションのログを記録する機能を提供します。
+    ログレベルの設定、ログの出力先の指定、パスのサニタイズなどの機能を持ちます。
+    """
+    
+    def __init__(self, log_dir='logs', level=logging.INFO):
         """
         初期化メソッド
         
         Args:
             log_dir (str): ログファイルを保存するディレクトリ
+            level (int): ログレベル（logging.DEBUG, logging.INFO など）
         """
         # ログディレクトリのパスをサニタイズ
         log_dir = self._sanitize_path(log_dir)
@@ -36,21 +42,51 @@ class Logger:
         
         # ロガーを設定
         self.logger = logging.getLogger('disk_utility')
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(level)
         
         # ファイルハンドラを設定
-        file_handler = logging.FileHandler(self.log_file)
-        file_handler.setLevel(logging.DEBUG)
+        self.file_handler = logging.FileHandler(self.log_file)
+        self.file_handler.setLevel(level)
         
         # フォーマッタを設定
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
+        self.file_handler.setFormatter(formatter)
         
         # ハンドラをロガーに追加
-        self.logger.addHandler(file_handler)
+        self.logger.addHandler(self.file_handler)
         
         # 初期ログ
-        self.info("ロガーを初期化しました。")
+        self.info(f"ロガーを初期化しました。レベル: {self._level_to_name(level)}")
+    
+    def _level_to_name(self, level):
+        """
+        ログレベルの数値を名前に変換
+        
+        Args:
+            level (int): ログレベル
+            
+        Returns:
+            str: ログレベルの名前
+        """
+        level_names = {
+            logging.DEBUG: "DEBUG",
+            logging.INFO: "INFO",
+            logging.WARNING: "WARNING",
+            logging.ERROR: "ERROR",
+            logging.CRITICAL: "CRITICAL"
+        }
+        return level_names.get(level, f"UNKNOWN({level})")
+    
+    def setLevel(self, level):
+        """
+        ログレベルを設定
+        
+        Args:
+            level (int): 設定するログレベル
+        """
+        self.logger.setLevel(level)
+        self.file_handler.setLevel(level)
+        self.info(f"ログレベルを変更しました: {self._level_to_name(level)}")
     
     def _sanitize_path(self, path):
         """
@@ -83,6 +119,15 @@ class Logger:
             path = os.path.relpath(path, '/')
         
         return path
+    
+    def debug(self, message):
+        """
+        デバッグレベルのログを記録
+        
+        Args:
+            message (str): ログメッセージ
+        """
+        self.logger.debug(message)
     
     def info(self, message):
         """

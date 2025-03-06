@@ -9,19 +9,23 @@ import os
 import re
 import shlex
 from pathlib import Path
+from .config_manager import ConfigManager
 
 class DiskUtils:
     """
     ディスク操作を行うクラス
     """
-    def __init__(self, logger):
+    def __init__(self, logger, config_manager=None):
         """
         初期化
         
         Args:
-            logger: ロガーオブジェクト
+            logger: ロガーインスタンス
+            config_manager (ConfigManager, optional): 設定マネージャーインスタンス
         """
         self.logger = logger
+        # 設定マネージャーが指定されていない場合は新しいインスタンスを作成
+        self.config_manager = config_manager if config_manager else ConfigManager()
         
         # 保護されたシステムディレクトリのリスト
         self.protected_dirs = [
@@ -350,7 +354,8 @@ class DiskUtils:
     
     def open_file_manager(self, mount_point):
         """
-        指定したマウントポイントをファイルマネージャー (PCManFM) で開く
+        指定したマウントポイントをファイルマネージャーで開く
+        環境に応じて適切なファイルマネージャーを検出して使用します
         
         Args:
             mount_point (str): マウントポイント
@@ -364,11 +369,44 @@ class DiskUtils:
             self.logger.error(error_msg)
             return False, error_msg
         
-        try:
-            self.logger.info(f"{mount_point} をファイルマネージャーで開いています...")
-            subprocess.Popen(["pcmanfm", mount_point])
-            return True, ""
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            error_msg = f"ファイルマネージャーの起動に失敗しました: {str(e)}"
-            self.logger.error(error_msg)
-            return False, error_msg 
+        # 設定から指定されたファイルマネージャーを取得
+        file_manager_setting = self.config_manager.get_file_manager()
+        
+        # ファイルマネージャーリストの設定
+        if isinstance(file_manager_setting, list):
+            # 'auto'の場合は設定に保存されているリストを使用
+            file_managers = file_manager_setting
+        else:
+            # 特定のファイルマネージャーが指定されている場合
+            file_managers = [file_manager_setting]
+        
+        self.logger.info(f"{mount_point} をファイルマネージャーで開いています...")
+        
+        # 有効なファイルマネージャーを順番に試す
+        for manager in file_managers:
+            try:
+                # スペースが含まれる場合はシェルコマンドとして実行
+                if " " in manager:
+                    subprocess.Popen(f"{manager} {mount_point}", shell=True)
+                    self.logger.info(f"ファイルマネージャー {manager} でマウントポイントを開きました")
+                    return True, ""
+                else:
+                    # 事前にファイルマネージャーが利用可能かチェック
+                    try:
+                        subprocess.check_call(["which", manager], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        # ファイルマネージャーが見つかったら実行
+                        subprocess.Popen([manager, mount_point])
+                        self.logger.info(f"ファイルマネージャー {manager} でマウントポイントを開きました")
+                        return True, ""
+                    except subprocess.CalledProcessError:
+                        # このファイルマネージャーは利用できないので次を試す
+                        continue
+            except Exception as e:
+                # このファイルマネージャーでは失敗したので次を試す
+                self.logger.warning(f"ファイルマネージャー {manager} での起動に失敗しました: {str(e)}")
+                continue
+        
+        # すべてのファイルマネージャーが失敗した場合
+        error_msg = "利用可能なファイルマネージャーが見つかりません"
+        self.logger.error(error_msg)
+        return False, error_msg 
