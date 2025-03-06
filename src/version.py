@@ -8,7 +8,7 @@ author: toma4423
 """
 
 # バージョン番号 (セマンティックバージョニング)
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # アプリケーション名
 APP_NAME = "Salvage Linux"
