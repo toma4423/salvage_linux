@@ -33,58 +33,92 @@ class DiskUtilityApp:
         # タイトルにバージョン情報を追加
         self.root.title(get_version_info())
         
+        # 最小ウィンドウサイズを設定（レイアウト崩れを防止）
+        self.root.minsize(800, 600)
         self.root.geometry("900x600")
         
-        # ロガーとディスクユーティリティの初期化
+        # スーパーユーザー権限の確認（テストモードでない場合）
+        if not test_mode and os.geteuid() != 0:
+            messagebox.showerror(
+                "権限エラー", 
+                "このアプリケーションはスーパーユーザー権限で実行する必要があります。\n"
+                "`sudo`コマンドを使って再実行してください。"
+            )
+            sys.exit(1)
+        
+        # ロガーとディスクユーティリティのインスタンス作成
         self.logger = Logger()
         self.disk_utils = DiskUtils(self.logger)
         
-        # 実行権限の確認（テストモードでない場合のみ）
-        if not test_mode and os.geteuid() != 0:
-            messagebox.showerror(
-                "権限エラー",
-                "このプログラムはsudo権限で実行する必要があります。\n"
-                "プログラムを終了します。"
-            )
-            sys.exit(1)
+        # 選択されたディスクの保存用変数
+        self.selected_unmounted_disk = None
+        self.selected_mounted_disk = None
         
         # GUIの構築
         self._build_gui()
         
-        # ディスク情報の初期ロード
+        # 起動時にディスクリストを更新
         self._refresh_disk_lists()
     
     def _build_gui(self):
         """
-        GUIの構築
+        GUIの構築 - ウィンドウサイズ変更に対応したレスポンシブなレイアウト
         """
+        # ルートウィンドウの行・列の設定
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_rowconfigure(1, weight=0)  # ステータスバー用
+        
         # メインフレーム
         main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # メインフレームの行・列の設定
+        main_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(1, weight=1)
+        main_frame.grid_rowconfigure(0, weight=1)
+        main_frame.grid_rowconfigure(1, weight=0)  # 下部ボタン用
         
         # 左右のパネル分割
         left_panel = ttk.LabelFrame(main_frame, text="未マウントディスク", padding="10")
-        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        left_panel.grid_columnconfigure(0, weight=1)
+        left_panel.grid_rowconfigure(0, weight=1)  # リストボックス
+        left_panel.grid_rowconfigure(1, weight=0)  # 情報フレーム
+        left_panel.grid_rowconfigure(2, weight=0)  # ボタンフレーム
+        left_panel.grid_rowconfigure(3, weight=0)  # フォーマット選択フレーム
         
         right_panel = ttk.LabelFrame(main_frame, text="マウント済みディスク", padding="10")
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+        right_panel.grid_columnconfigure(0, weight=1)
+        right_panel.grid_rowconfigure(0, weight=1)  # リストボックス
+        right_panel.grid_rowconfigure(1, weight=0)  # 情報フレーム
+        right_panel.grid_rowconfigure(2, weight=0)  # ボタンフレーム
         
         # 未マウントディスクリスト（左パネル）
         self.unmounted_disk_listbox = tk.Listbox(left_panel, selectmode=tk.SINGLE, height=15)
-        self.unmounted_disk_listbox.pack(fill=tk.BOTH, expand=True)
+        self.unmounted_disk_listbox.grid(row=0, column=0, sticky="nsew")
         self.unmounted_disk_listbox.bind('<<ListboxSelect>>', self._on_unmounted_disk_select)
+        
+        # スクロールバーの追加
+        unmounted_scrollbar = ttk.Scrollbar(left_panel, orient="vertical", command=self.unmounted_disk_listbox.yview)
+        unmounted_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.unmounted_disk_listbox.configure(yscrollcommand=unmounted_scrollbar.set)
         
         # 未マウントディスク情報表示エリア
         unmounted_info_frame = ttk.LabelFrame(left_panel, text="ディスク情報", padding="5")
-        unmounted_info_frame.pack(fill=tk.X, pady=(10, 0))
+        unmounted_info_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        unmounted_info_frame.grid_columnconfigure(0, weight=1)
         
         self.unmounted_disk_info = tk.Text(unmounted_info_frame, height=5, wrap=tk.WORD)
-        self.unmounted_disk_info.pack(fill=tk.BOTH, expand=True)
+        self.unmounted_disk_info.grid(row=0, column=0, sticky="nsew")
         self.unmounted_disk_info.config(state=tk.DISABLED)
         
         # 未マウントディスク操作ボタン
         unmounted_button_frame = ttk.Frame(left_panel, padding="5")
-        unmounted_button_frame.pack(fill=tk.X, pady=(10, 0))
+        unmounted_button_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        unmounted_button_frame.grid_columnconfigure(0, weight=1)
+        unmounted_button_frame.grid_columnconfigure(1, weight=1)
         
         self.mount_button = ttk.Button(
             unmounted_button_frame, 
@@ -92,7 +126,7 @@ class DiskUtilityApp:
             command=self._mount_selected_disk,
             state=tk.DISABLED
         )
-        self.mount_button.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
+        self.mount_button.grid(row=0, column=0, sticky="ew", padx=(0, 5))
         
         self.format_button = ttk.Button(
             unmounted_button_frame, 
@@ -100,13 +134,13 @@ class DiskUtilityApp:
             command=self._format_selected_disk,
             state=tk.DISABLED
         )
-        self.format_button.pack(side=tk.RIGHT, padx=(5, 0), fill=tk.X, expand=True)
+        self.format_button.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         
         # フォーマット形式選択
         format_select_frame = ttk.Frame(left_panel, padding="5")
-        format_select_frame.pack(fill=tk.X, pady=(5, 0))
+        format_select_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(5, 0))
         
-        ttk.Label(format_select_frame, text="フォーマット形式:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(format_select_frame, text="フォーマット形式:").grid(row=0, column=0, sticky="w", padx=(0, 5))
         
         # テストモードの場合はStringVarではなく通常の文字列を使用
         if self.test_mode:
@@ -121,7 +155,7 @@ class DiskUtilityApp:
             variable=self.fs_type_var if not self.test_mode else None, 
             value="ntfs"
         )
-        ntfs_radio.pack(side=tk.LEFT, padx=(0, 10))
+        ntfs_radio.grid(row=0, column=1, sticky="w", padx=(0, 10))
         
         exfat_radio = ttk.Radiobutton(
             format_select_frame, 
@@ -129,24 +163,32 @@ class DiskUtilityApp:
             variable=self.fs_type_var if not self.test_mode else None, 
             value="exfat"
         )
-        exfat_radio.pack(side=tk.LEFT)
+        exfat_radio.grid(row=0, column=2, sticky="w")
         
         # マウント済みディスクリスト（右パネル）
         self.mounted_disk_listbox = tk.Listbox(right_panel, selectmode=tk.SINGLE, height=15)
-        self.mounted_disk_listbox.pack(fill=tk.BOTH, expand=True)
+        self.mounted_disk_listbox.grid(row=0, column=0, sticky="nsew")
         self.mounted_disk_listbox.bind('<<ListboxSelect>>', self._on_mounted_disk_select)
+        
+        # スクロールバーの追加
+        mounted_scrollbar = ttk.Scrollbar(right_panel, orient="vertical", command=self.mounted_disk_listbox.yview)
+        mounted_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.mounted_disk_listbox.configure(yscrollcommand=mounted_scrollbar.set)
         
         # マウント済みディスク情報表示エリア
         mounted_info_frame = ttk.LabelFrame(right_panel, text="ディスク情報", padding="5")
-        mounted_info_frame.pack(fill=tk.X, pady=(10, 0))
+        mounted_info_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        mounted_info_frame.grid_columnconfigure(0, weight=1)
         
         self.mounted_disk_info = tk.Text(mounted_info_frame, height=5, wrap=tk.WORD)
-        self.mounted_disk_info.pack(fill=tk.BOTH, expand=True)
+        self.mounted_disk_info.grid(row=0, column=0, sticky="nsew")
         self.mounted_disk_info.config(state=tk.DISABLED)
         
         # マウント済みディスク操作ボタン
         mounted_button_frame = ttk.Frame(right_panel, padding="5")
-        mounted_button_frame.pack(fill=tk.X, pady=(10, 0))
+        mounted_button_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        mounted_button_frame.grid_columnconfigure(0, weight=1)
+        mounted_button_frame.grid_columnconfigure(1, weight=1)
         
         self.open_button = ttk.Button(
             mounted_button_frame, 
@@ -154,7 +196,7 @@ class DiskUtilityApp:
             command=self._open_selected_disk,
             state=tk.DISABLED
         )
-        self.open_button.pack(side=tk.LEFT, padx=(0, 5), fill=tk.X, expand=True)
+        self.open_button.grid(row=0, column=0, sticky="ew", padx=(0, 5))
         
         self.permission_button = ttk.Button(
             mounted_button_frame, 
@@ -162,18 +204,19 @@ class DiskUtilityApp:
             command=self._set_permissions_to_selected_disk,
             state=tk.DISABLED
         )
-        self.permission_button.pack(side=tk.RIGHT, padx=(5, 0), fill=tk.X, expand=True)
+        self.permission_button.grid(row=0, column=1, sticky="ew", padx=(5, 0))
         
         # 共通操作ボタン（下部）
         bottom_frame = ttk.Frame(main_frame, padding="10")
-        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(10, 0))
+        bottom_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        bottom_frame.grid_columnconfigure(1, weight=1)  # 右寄せにするため
         
         refresh_button = ttk.Button(
             bottom_frame, 
             text="更新", 
             command=self._refresh_disk_lists
         )
-        refresh_button.pack(side=tk.RIGHT)
+        refresh_button.grid(row=0, column=1, sticky="e")
         
         # ステータスバー
         if self.test_mode:
@@ -190,7 +233,7 @@ class DiskUtilityApp:
             anchor=tk.W,
             padding=(5, 2)
         )
-        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        status_bar.grid(row=1, column=0, sticky="ew")
     
     def _refresh_disk_lists(self):
         """
