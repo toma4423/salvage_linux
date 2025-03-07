@@ -450,8 +450,15 @@ class DiskUtils:
         
         # デバイス名でディスクを検索
         for disk in disk_list:
-            if os.path.basename(disk.get("device", "")) == device_name:
+            # deviceフィールドまたはpathフィールドでデバイス名を比較
+            if (os.path.basename(disk.get("device", "")) == device_name or
+                os.path.basename(disk.get("path", "")) == device_name):
                 self.logger.debug(f"ディスクが見つかりました: {disk}")
+                
+                # deviceフィールドが存在しない場合はpathフィールドからコピー
+                if "device" not in disk and "path" in disk:
+                    disk["device"] = disk["path"]
+                
                 return disk
         
         self.logger.warning(f"ディスクが見つかりません: {device_name}")

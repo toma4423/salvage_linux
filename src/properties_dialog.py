@@ -437,12 +437,12 @@ class PropertiesDialog:
         value.grid(row=row, column=1, sticky=tk.W, padx=5, pady=2)
     
     def _save_to_file(self):
-        """プロパティ情報をテキストファイルに保存"""
+        """プロパティ情報をJSONファイルに保存"""
         try:
             # ファイル名を生成
             device_name = os.path.basename(self.device_path).replace('/', '_')
             now = datetime.datetime.now()
-            default_filename = f"disk_properties_{device_name}_{now.strftime('%Y%m%d_%H%M%S')}.txt"
+            default_filename = f"disk_properties_{device_name}_{now.strftime('%Y%m%d_%H%M%S')}.json"
             
             # ファイル保存ダイアログを表示
             file_path = filedialog.asksaveasfilename(
@@ -450,8 +450,8 @@ class PropertiesDialog:
                 title="プロパティ情報の保存",
                 initialdir=os.path.expanduser("~"),
                 initialfile=default_filename,
-                filetypes=[("テキストファイル", "*.txt")],
-                defaultextension=".txt"
+                filetypes=[("JSONファイル", "*.json"), ("テキストファイル", "*.txt"), ("すべてのファイル", "*.*")],
+                defaultextension=".json"
             )
             
             if not file_path:

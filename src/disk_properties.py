@@ -419,7 +419,7 @@ class DiskPropertiesAnalyzer:
     
     def save_properties_to_file(self, properties, device_path):
         """
-        プロパティ情報をファイルに保存します（ダミー実装 - 実際の実装はGUIから行う）
+        プロパティ情報をJSONファイルに保存します（ダミー実装 - 実際の実装はGUIから行う）
         
         Args:
             properties (dict): プロパティ情報
@@ -431,7 +431,7 @@ class DiskPropertiesAnalyzer:
         try:
             device_name = os.path.basename(device_path).replace('/', '_')
             now = datetime.datetime.now()
-            filename = f"disk_properties_{device_name}_{now.strftime('%Y%m%d_%H%M%S')}.txt"
+            filename = f"disk_properties_{device_name}_{now.strftime('%Y%m%d_%H%M%S')}.json"
             
             with open(filename, 'w', encoding='utf-8-sig') as f:
                 json.dump(properties, f, ensure_ascii=False, indent=4)
