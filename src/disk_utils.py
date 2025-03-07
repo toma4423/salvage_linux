@@ -409,4 +409,50 @@ class DiskUtils:
         # すべてのファイルマネージャーが失敗した場合
         error_msg = "利用可能なファイルマネージャーが見つかりません"
         self.logger.error(error_msg)
-        return False, error_msg 
+        return False, error_msg
+
+    def find_disk_by_display_name(self, display_name, unmounted_only=False, mounted_only=False):
+        """
+        表示名からディスク情報を取得
+        
+        表示名はリストボックスに表示される形式（"sda1 (8GB, ディスク)"など）であり、
+        この関数はその表示名を解析して実際のディスク情報を返します。
+        
+        Args:
+            display_name (str): リストボックスに表示されるディスク名
+            unmounted_only (bool): Trueの場合、未マウントディスクのみから検索
+            mounted_only (bool): Trueの場合、マウント済みディスクのみから検索
+            
+        Returns:
+            dict or None: 見つかったディスク情報、見つからない場合はNone
+        """
+        self.logger.debug(f"表示名からディスク検索: {display_name}")
+        
+        # デバイス名を抽出（"sda1 (8GB, ディスク)" -> "sda1"）
+        device_name_match = re.match(r'(\S+)', display_name)
+        if not device_name_match:
+            self.logger.error(f"無効な表示名: {display_name}")
+            return None
+        
+        device_name = device_name_match.group(1)
+        self.logger.debug(f"抽出されたデバイス名: {device_name}")
+        
+        # 検索するディスクリスト
+        disk_list = []
+        
+        if not mounted_only:
+            unmounted_disks = self.get_unmounted_disks()
+            disk_list.extend(unmounted_disks)
+        
+        if not unmounted_only:
+            mounted_disks = self.get_mounted_disks()
+            disk_list.extend(mounted_disks)
+        
+        # デバイス名でディスクを検索
+        for disk in disk_list:
+            if os.path.basename(disk.get("device", "")) == device_name:
+                self.logger.debug(f"ディスクが見つかりました: {disk}")
+                return disk
+        
+        self.logger.warning(f"ディスクが見つかりません: {device_name}")
+        return None 

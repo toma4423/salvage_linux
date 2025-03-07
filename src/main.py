@@ -17,6 +17,8 @@ from src.disk_utils import DiskUtils
 from src.version import get_version_info, APP_NAME, __version__
 from src.config_manager import ConfigManager
 from src.settings import SettingsDialog
+from src.disk_properties import DiskPropertiesAnalyzer
+from src.properties_dialog import PropertiesDialog
 
 class DiskUtilityApp:
     """
@@ -134,6 +136,9 @@ class DiskUtilityApp:
         self.unmounted_disk_listbox = tk.Listbox(left_panel, selectmode=tk.SINGLE, height=15)
         self.unmounted_disk_listbox.grid(row=0, column=0, sticky="nsew")
         self.unmounted_disk_listbox.bind('<<ListboxSelect>>', self._on_unmounted_disk_select)
+        
+        # 右クリックメニューを追加
+        self._add_unmounted_disk_context_menu()
         
         # スクロールバーの追加
         unmounted_scrollbar = ttk.Scrollbar(left_panel, orient="vertical", command=self.unmounted_disk_listbox.yview)
@@ -700,6 +705,76 @@ class DiskUtilityApp:
         SettingsDialog(self.root, self.config_manager, self.logger)
         # 設定変更後にディスクリストを更新
         self._refresh_disk_lists()
+
+    def _add_unmounted_disk_context_menu(self):
+        """
+        未マウントディスクリストボックスに右クリックメニューを追加
+        """
+        self.unmounted_context_menu = tk.Menu(self.root, tearoff=0)
+        self.unmounted_context_menu.add_command(label="プロパティ", command=self._show_unmounted_properties)
+        
+        # 右クリックイベントをバインド
+        self.unmounted_disk_listbox.bind("<Button-3>", self._show_unmounted_context_menu)
+
+    def _show_unmounted_context_menu(self, event):
+        """
+        未マウントディスクの右クリックメニューを表示
+        
+        Args:
+            event: イベントオブジェクト
+        """
+        try:
+            # クリックされた位置の項目を選択
+            self.unmounted_disk_listbox.selection_clear(0, tk.END)
+            self.unmounted_disk_listbox.selection_set(self.unmounted_disk_listbox.nearest(event.y))
+            self.unmounted_disk_listbox.activate(self.unmounted_disk_listbox.nearest(event.y))
+            
+            # 有効なデバイスが選択されている場合のみメニューを表示
+            if self.unmounted_disk_listbox.curselection():
+                self.unmounted_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            # 確実にメニューを閉じる
+            self.unmounted_context_menu.grab_release()
+
+    def _show_unmounted_properties(self):
+        """
+        選択された未マウントディスクのプロパティを表示
+        """
+        try:
+            selection = self.unmounted_disk_listbox.curselection()
+            if not selection:
+                self.logger.warning("ディスクが選択されていません")
+                messagebox.showwarning("警告", "ディスクが選択されていません。")
+                return
+            
+            selected_item = self.unmounted_disk_listbox.get(selection[0])
+            self.logger.info(f"プロパティ表示: {selected_item}")
+            
+            # 選択されたディスクのデバイスパスを取得
+            disk_info = self.disk_utils.find_disk_by_display_name(selected_item, unmounted_only=True)
+            if not disk_info:
+                self.logger.error(f"ディスク情報が見つかりません: {selected_item}")
+                messagebox.showerror("エラー", f"ディスク情報が見つかりません: {selected_item}")
+                return
+            
+            device_path = disk_info.get("device")
+            if not device_path:
+                self.logger.error("デバイスパスが見つかりません")
+                messagebox.showerror("エラー", "デバイスパスが見つかりません。")
+                return
+            
+            # プロパティアナライザーを作成
+            properties_analyzer = DiskPropertiesAnalyzer(self.logger)
+            
+            # プロパティ情報を取得
+            properties = properties_analyzer.get_disk_properties(device_path)
+            
+            # プロパティダイアログを表示
+            dialog = PropertiesDialog(self.root, properties, device_path, self.logger)
+            
+        except Exception as e:
+            self.logger.error(f"プロパティ表示中にエラーが発生しました: {str(e)}")
+            messagebox.showerror("エラー", f"プロパティ表示中にエラーが発生しました。\n{str(e)}")
 
 
 def main():
