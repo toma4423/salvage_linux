@@ -52,18 +52,29 @@ jobs:
           files: |
             dist/salvage_linux
           body: |
-            # Salvage Linux v${{ steps.get_version.outputs.VERSION }}
+            # Salvage Linux v${{ steps.get_version.outputs.VERSION }} プレリリース
             
-            USB Boot Linux GUIディスクユーティリティの新しいリリースです。
+            USB Boot Linux GUIディスクユーティリティの新機能プレリリースです。
+            
+            ## 新機能：ディスクプロパティ表示
+            
+            ### 追加された機能
+            - **ディスクプロパティ表示**: 未マウントディスクの詳細情報を表示
+            - **右クリックメニュー**: 未マウントディスクで右クリックしてプロパティを表示
+            - **S.M.A.R.T.情報**: ディスクの健康状態をS.M.A.R.T.情報から判定
+            - **ファイルシステム情報**: パーティションのファイルシステム状態を表示
+            - **健康状態評価**: ディスクの状態を「正常」「異常」「故障」で表示
+            - **ファイル保存**: プロパティ情報をJSON形式でファイルに保存
+            
+            ### 技術的改善
+            - ディスク診断機能の強化
+            - タブ形式の情報表示による閲覧性向上
+            - テスト環境の改善とタイムアウト機能の追加
             
             ## インストール方法
             
             1. リリースからバイナリをダウンロード
             2. 実行権限を付与: `chmod +x salvage_linux`
             3. 実行: `sudo ./salvage_linux`
-            
-            ## 変更点
-            
-            - 初期リリース
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
