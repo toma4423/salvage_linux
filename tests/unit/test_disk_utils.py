@@ -411,7 +411,7 @@ class TestDiskUtils:
         
         # 結果を検証
         assert success is False
-        assert "失敗" in error_msg
+        assert "利用可能なファイルマネージャーが見つかりません" in error_msg
         
         # エラーログが記録されたことを確認
         assert mock_logger.error.called 
