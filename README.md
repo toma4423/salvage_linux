@@ -97,3 +97,5 @@ MIT ライセンスの下で公開されています。詳細は[LICENSE](LICENS
 ## 貢献
 バグ報告や機能リクエストは[GitHubのIssue](https://github.com/toma4423/salvage_linux/issues)にて受け付けています。
 プルリクエストも歓迎します。 
+
+
