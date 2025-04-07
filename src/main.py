@@ -95,6 +95,8 @@ class DiskUtilityApp:
         # ヘルプメニュー
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="ヘルプ", menu=help_menu)
+        help_menu.add_command(label="お知らせ", command=self.show_announcements)
+        help_menu.add_separator()
         help_menu.add_command(label="バージョン情報", command=self._show_about)
     
     def _build_gui(self):
@@ -775,6 +777,58 @@ class DiskUtilityApp:
         except Exception as e:
             self.logger.error(f"プロパティ表示中にエラーが発生しました: {str(e)}")
             messagebox.showerror("エラー", f"プロパティ表示中にエラーが発生しました。\n{str(e)}")
+
+    def show_announcements(self):
+        """お知らせダイアログを表示"""
+        dialog = tk.Toplevel(self)
+        dialog.title("お知らせ")
+        dialog.geometry("600x400")
+        dialog.transient(self)
+        dialog.grab_set()
+        
+        # スクロール可能なテキストエリア
+        text_frame = ttk.Frame(dialog)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        text = tk.Text(text_frame, wrap=tk.WORD, yscrollcommand=scrollbar.set)
+        text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=text.yview)
+        
+        # お知らせ内容
+        announcements = """
+【重要なお知らせ】
+
+■ ReFSフォーマット機能について
+現在、ReFSフォーマット機能は仮実装の段階です。
+以下の制限事項があります：
+・ReFSツールのインストールが必要です
+・フォーマット操作の信頼性が限定的です
+・データの整合性チェックが不完全です
+
+■ 今後の予定
+・ReFSフォーマット機能の完全実装
+・フォーマット前のデータバックアップ機能
+・フォーマット操作のロールバック機能
+・より詳細なエラー報告機能
+
+■ ご注意
+・重要なデータの操作は必ずバックアップを取ってください
+・システムディスクへの操作は制限されています
+・一部の機能は管理者権限が必要です
+
+■ フィードバック
+機能の改善のため、ご意見・ご要望をお待ちしています。
+GitHubのIssueでご報告ください。
+"""
+        
+        text.insert(tk.END, announcements)
+        text.config(state=tk.DISABLED)
+        
+        # 閉じるボタン
+        ttk.Button(dialog, text="閉じる", command=dialog.destroy).pack(pady=10)
 
 
 def main():

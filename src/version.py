@@ -1,17 +1,17 @@
 """
 version.py - バージョン情報管理
 
-このモジュールはSalvage Linuxアプリケーションのバージョン情報を管理します。
+このモジュールはDisk Utilityアプリケーションのバージョン情報を管理します。
 リリース時に参照される単一の情報源として機能します。
 
 author: toma4423
 """
 
 # バージョン番号 (セマンティックバージョニング)
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 # アプリケーション名
-APP_NAME = "Salvage Linux"
+APP_NAME = "Disk Utility"
 
 # 著作権表示
 COPYRIGHT = "© 2023-2024 toma4423"
