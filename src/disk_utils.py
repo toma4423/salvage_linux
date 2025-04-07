@@ -183,15 +183,21 @@ class DiskUtils:
         if not path:
             return False
         
-        # パスが/dev/で始まることを確認
-        if not path.startswith("/dev/"):
-            return False
+        # デバイスパスの場合は/dev/で始まることを確認
+        if path.startswith("/dev/"):
+            # パスに特殊文字が含まれていないことを確認
+            if re.search(r'[;&|`$]', path):
+                return False
+            return True
         
-        # パスに特殊文字が含まれていないことを確認
-        if re.search(r'[;&|`$]', path):
-            return False
+        # マウントポイントの場合は絶対パスであることを確認
+        if path.startswith("/"):
+            # パスに特殊文字が含まれていないことを確認
+            if re.search(r'[;&|`$]', path):
+                return False
+            return True
         
-        return True
+        return False
     
     def _check_refs_tools_available(self):
         """
@@ -203,10 +209,8 @@ class DiskUtils:
         try:
             # mkfs.refsコマンドが存在するかチェック
             subprocess.check_call(["which", "mkfs.refs"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            # refsutilコマンドが存在するかチェック
-            subprocess.check_call(["which", "refsutil"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
     
     def _is_system_directory(self, path):
@@ -252,6 +256,12 @@ class DiskUtils:
             if not self._is_valid_path(mount_point):
                 self.logger.error(f"無効なマウントポイント: {mount_point}")
                 return False, "無効なマウントポイントが指定されました。", ""
+            
+            # システムディレクトリへのマウントを防止
+            if self._is_system_directory(mount_point):
+                error_msg = f"システムディレクトリへのマウントはできません: {mount_point}"
+                self.logger.error(error_msg)
+                return False, error_msg, ""
             
             # マウントポイントディレクトリが存在しない場合は作成
             if not os.path.exists(mount_point):
@@ -311,7 +321,7 @@ class DiskUtils:
             return False, error_msg
         
         # システムディレクトリをフォーマットから保護
-        if os.path.exists(device_path) and self._is_system_directory(device_path):
+        if self._is_system_directory(device_path):
             error_msg = f"システムディレクトリはフォーマットできません: {device_path}"
             self.logger.error(error_msg)
             return False, error_msg
