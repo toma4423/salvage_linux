@@ -81,6 +81,10 @@ class DiskUtilityApp(QMainWindow):
         self.selected_unmounted_disk = None
         self.selected_mounted_disk = None
         
+        # ディスクリストの初期化
+        self.unmounted_disks = []
+        self.mounted_disks = []
+        
         # メニューバーの作成
         self._create_menu()
         
@@ -339,6 +343,7 @@ class DiskUtilityApp(QMainWindow):
             
             # リストをクリア
             self.unmounted_disk_listbox.clear()
+            self.unmounted_disks = []
             
             # 未マウントディスクを追加
             for device in disks_data.get("blockdevices", []):
@@ -351,6 +356,7 @@ class DiskUtilityApp(QMainWindow):
                         "type": device.get("type"),
                         "fstype": device.get("fstype", "")
                     }
+                    self.unmounted_disks.append(disk_info)
                     self._add_disk_to_list(disk_info, self.unmounted_disk_listbox)
                 
                 # パーティションの処理
@@ -363,14 +369,24 @@ class DiskUtilityApp(QMainWindow):
                             "type": partition.get("type"),
                             "fstype": partition.get("fstype", "")
                         }
+                        self.unmounted_disks.append(partition_info)
                         self._add_disk_to_list(partition_info, self.unmounted_disk_listbox)
             
             # マウント済みディスクのリストを取得（テストモードでは空のリストを返す）
             if not self.test_mode:
                 mounted_disks = self.disk_utils.get_mounted_disks()
                 self.mounted_disk_listbox.clear()
+                self.mounted_disks = []
                 for disk in mounted_disks:
-                    self._add_disk_to_list(disk, self.mounted_disk_listbox)
+                    disk_info = {
+                        "name": os.path.basename(disk),
+                        "path": disk,
+                        "mountpoint": disk,
+                        "type": "disk",
+                        "fstype": self.disk_utils.get_filesystem_type(disk)
+                    }
+                    self.mounted_disks.append(disk_info)
+                    self._add_disk_to_list(disk_info, self.mounted_disk_listbox)
             
             self.logger.info("ディスクリストを更新しました")
             

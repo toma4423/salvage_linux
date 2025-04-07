@@ -58,24 +58,48 @@ class DiskUtils:
             self.logger.error(f"未マウントディスクの取得に失敗しました: {str(e)}")
             return {"blockdevices": []}
 
-    def get_mounted_disks(self) -> List[str]:
+    def get_mounted_disks(self) -> List[dict]:
         """
         マウント済みのディスクの一覧を取得します
 
         Returns:
-            List[str]: マウント済みディスクのパスのリスト
+            List[dict]: マウント済みディスクの情報を含むリスト
         """
         try:
-            output = subprocess.check_output(["mount"], stderr=subprocess.DEVNULL)
-            mounts = output.decode('utf-8').strip().split('\n')
-            disks = []
-            for mount in mounts:
-                if mount.startswith('/dev/'):
-                    disk = mount.split()[0]
-                    disks.append(disk)
-            return disks
-        except (subprocess.CalledProcessError, UnicodeDecodeError):
-            self.logger.error("マウント済みディスクの取得に失敗しました")
+            # lsblkコマンドでマウント済みディスクを取得（JSON形式）
+            output = subprocess.check_output(["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE"])
+            disks_data = json.loads(output.decode())
+            
+            mounted_disks = []
+            for device in disks_data.get("blockdevices", []):
+                # マウントポイントがあるディスクを追加
+                if device.get("mountpoint"):
+                    disk_info = {
+                        "name": device.get("name"),
+                        "path": f"/dev/{device.get('name')}",
+                        "size": device.get("size"),
+                        "type": device.get("type"),
+                        "mountpoint": device.get("mountpoint"),
+                        "fstype": device.get("fstype", "")
+                    }
+                    mounted_disks.append(disk_info)
+                
+                # パーティションの処理
+                for partition in device.get("children", []):
+                    if partition.get("mountpoint"):
+                        partition_info = {
+                            "name": partition.get("name"),
+                            "path": f"/dev/{partition.get('name')}",
+                            "size": partition.get("size"),
+                            "type": partition.get("type"),
+                            "mountpoint": partition.get("mountpoint"),
+                            "fstype": partition.get("fstype", "")
+                        }
+                        mounted_disks.append(partition_info)
+            
+            return mounted_disks
+        except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
+            self.logger.error(f"マウント済みディスクの取得に失敗しました: {str(e)}")
             return []
     
     def get_filesystem_type(self, device_path: str) -> str:
