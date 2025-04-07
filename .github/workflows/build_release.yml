@@ -8,110 +8,80 @@ on:
     branches:
       - '**'  # すべてのブランチへのプッシュ
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install pytest-cov
-          
+      
       - name: Install ReFS tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y refs-tools || true
-          
-      - name: Run tests with coverage
-        run: |
-          python -m pytest --cov=src --cov-report=xml --cov-report=term-missing
-          
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: true
-
-  build:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/v')  # タグがvで始まる場合のみビルドを実行
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          
+          sudo apt-get install -y refs-tools
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install pyinstaller
-
+          pip install pytest pytest-cov pytest-mock
+      
+      - name: Run tests
+        run: |
+          python -m pytest --cov=src --cov-report=xml --cov-report=term-missing
+      
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage.xml
+      
       - name: Build with PyInstaller
         run: |
-          pyinstaller salvage_linux.spec
-          
-      - name: Make executable
-        run: |
-          chmod +x dist/salvage_linux
-          
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          pip install pyinstaller
+          pyinstaller --onefile --name disk_utility src/main.py
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: disk_utility
+          path: dist/disk_utility
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  # タグがvで始まる場合のみビルドを実行
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: disk_utility
+          path: dist
       
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          name: リリース v${{ steps.get_version.outputs.VERSION }}
-          draft: false
-          prerelease: true
-          files: |
-            dist/salvage_linux
+          files: dist/disk_utility
+          name: Release ${{ github.ref_name }}
           body: |
-            # Salvage Linux v${{ steps.get_version.outputs.VERSION }} プレリリース
+            ## 機能と改善点
             
-            USB Boot Linux GUIディスクユーティリティの新機能プレリリースです。
-            
-            ## 新機能：ディスクプロパティ表示
-            
-            ### 追加された機能
-            - **ディスクプロパティ表示**: 未マウントディスクの詳細情報を表示
-            - **右クリックメニュー**: 未マウントディスクで右クリックしてプロパティを表示
-            - **S.M.A.R.T.情報**: ディスクの健康状態をS.M.A.R.T.情報から判定
-            - **ファイルシステム情報**: パーティションのファイルシステム状態を表示
-            - **健康状態評価**: ディスクの状態を「正常」「異常」「故障」で表示
-            - **ファイル保存**: プロパティ情報をJSON形式でファイルに保存
-            - **ReFSサポート**: ReFSファイルシステムのフォーマットと操作をサポート
-            
-            ### 技術的改善
-            - ディスク診断機能の強化
-            - タブ形式の情報表示による閲覧性向上
-            - テスト環境の改善とタイムアウト機能の追加
-            - コードカバレッジの向上
-            
-            ## インストール方法
-            
-            1. リリースからバイナリをダウンロード
-            2. 実行権限を付与: `chmod +x salvage_linux`
-            3. 実行: `sudo ./salvage_linux`
+            - ReFSファイルシステムのサポートを追加
+            - ディスク操作の安全性を向上
+            - エラーメッセージの改善
+            - テストカバレッジの向上
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

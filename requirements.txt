@@ -4,3 +4,18 @@
 
 # ログ管理
 logging==0.4.9.6 
+
+# 基本パッケージ
+PyQt5>=5.15.0
+psutil>=5.8.0
+pyudev>=0.24.0
+pywin32>=300; platform_system == "Windows"
+pywin32-ctypes>=0.2.0; platform_system == "Windows"
+
+# テスト用パッケージ
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+
+# ビルド用パッケージ
+pyinstaller>=5.13.0 
