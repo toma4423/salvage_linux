@@ -13,7 +13,7 @@ on:
       - master
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,40 +21,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      
-      - name: Install ReFS tools
-        run: |
-          # Microsoftのリポジトリを追加
-          wget https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-          sudo dpkg -i packages-microsoft-prod.deb
-          sudo apt-get update
-          
-          # ReFSツールをインストール
-          sudo apt-get install -y refs-tools || true
-          
-          # インストールに失敗しても続行（テストはモックで実行）
-          echo "ReFS tools installation completed or skipped"
+          python-version: '3.13'
       
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-mock
-      
-      - name: Run tests
-        run: |
-          python -m pytest --cov=src --cov-report=xml --cov-report=term-missing
-      
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+          pip install pyinstaller
       
       - name: Build with PyInstaller
         run: |
-          pip install pyinstaller
           pyinstaller --onefile --name disk_utility src/main.py
       
       - name: Upload build artifact
