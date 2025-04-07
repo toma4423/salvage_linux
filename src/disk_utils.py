@@ -49,49 +49,47 @@ class DiskUtils:
         
         if self.test_mode:
             # テストモード用のモックデータ
-            mock_data = {
-                "blockdevices": [
-                    {
-                        "name": "disk0",
-                        "size": "500G",
-                        "type": "disk",
-                        "fstype": None,
-                        "mountpoint": None,
-                        "children": [
-                            {
-                                "name": "disk0s1",
-                                "size": "200M",
-                                "type": "part",
-                                "fstype": "efi",
-                                "mountpoint": "/boot/efi"
-                            },
-                            {
-                                "name": "disk0s2",
-                                "size": "450G",
-                                "type": "part",
-                                "fstype": "apfs",
-                                "mountpoint": "/"
-                            }
-                        ]
-                    },
-                    {
-                        "name": "disk1",
-                        "size": "32G",
-                        "type": "disk",
-                        "fstype": None,
-                        "mountpoint": None,
-                        "children": [
-                            {
-                                "name": "disk1s1",
-                                "size": "32G",
-                                "type": "part",
-                                "fstype": None,
-                                "mountpoint": None
-                            }
-                        ]
-                    }
-                ]
-            }
+            mock_data = [
+                {
+                    "name": "disk0",
+                    "size": "500G",
+                    "type": "disk",
+                    "fstype": None,
+                    "mountpoint": None,
+                    "children": [
+                        {
+                            "name": "disk0s1",
+                            "size": "200M",
+                            "type": "part",
+                            "fstype": "efi",
+                            "mountpoint": "/boot/efi"
+                        },
+                        {
+                            "name": "disk0s2",
+                            "size": "450G",
+                            "type": "part",
+                            "fstype": "apfs",
+                            "mountpoint": "/"
+                        }
+                    ]
+                },
+                {
+                    "name": "disk1",
+                    "size": "32G",
+                    "type": "disk",
+                    "fstype": None,
+                    "mountpoint": None,
+                    "children": [
+                        {
+                            "name": "disk1s1",
+                            "size": "32G",
+                            "type": "part",
+                            "fstype": None,
+                            "mountpoint": None
+                        }
+                    ]
+                }
+            ]
             return mock_data
         
         try:
@@ -100,13 +98,14 @@ class DiskUtils:
                 ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT"],
                 universal_newlines=True
             )
-            return json.loads(output)
+            data = json.loads(output)
+            return data.get("blockdevices", [])
         except subprocess.CalledProcessError as e:
             self.logger.error(f"lsblkコマンドの実行に失敗しました: {e}")
-            return {"blockdevices": []}
+            return []
         except json.JSONDecodeError as e:
             self.logger.error(f"JSONのデコードに失敗しました: {e}")
-            return {"blockdevices": []}
+            return []
     
     def get_mounted_disks(self):
         """

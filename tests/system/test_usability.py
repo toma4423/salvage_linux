@@ -110,7 +110,7 @@ def logger_and_disk_utils(temp_dir):
 def gui_app(mocked_root, logger_and_disk_utils):
     """モック化されたGUIインスタンスを提供するフィクスチャ"""
     logger, disk_utils = logger_and_disk_utils
-    gui_instance = DiskUtilityApp(mocked_root, test_mode=True)
+    gui_instance = DiskUtilityApp(test_mode=True)
     
     # DiskUtilsとLoggerを直接設定
     gui_instance.disk_utils = disk_utils

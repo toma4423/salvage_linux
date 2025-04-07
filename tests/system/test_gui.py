@@ -67,7 +67,7 @@ def gui_app():
     ])
     
     # GUIインスタンスを作成（テストモードを有効に）
-    app = DiskUtilityApp(root, test_mode=True)
+    app = DiskUtilityApp(test_mode=True)
     
     # モックをアプリケーションに設定
     app.logger = logger
