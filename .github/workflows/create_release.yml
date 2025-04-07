@@ -26,11 +26,13 @@ jobs:
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "Latest tag: $LATEST_TAG"
           
+          # バージョン番号を分割（v0.1.4 から 0.1.4 を抽出）
+          VERSION=${LATEST_TAG#v}
+          echo "Version: $VERSION"
+          
           # バージョン番号を分割
-          VERSION_PARTS=(${LATEST_TAG#v})
-          MAJOR=${VERSION_PARTS[0]}
-          MINOR=${VERSION_PARTS[1]}
-          PATCH=${VERSION_PARTS[2]}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          echo "Major: $MAJOR, Minor: $MINOR, Patch: $PATCH"
           
           # パッチバージョンをインクリメント
           NEW_PATCH=$((PATCH + 1))
