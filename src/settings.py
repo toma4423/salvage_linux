@@ -151,12 +151,13 @@ class SettingsDialog(QDialog):
             self.config_manager.set("confirm_dialog", self.confirm_dialog.isChecked())
             
             # 設定を保存
-            self.config_manager.save()
-            
-            self.logger.info("設定を保存しました")
-            QMessageBox.information(self, "保存完了", "設定を保存しました。")
-            
-            self.accept()
+            if self.config_manager.save_config():
+                self.logger.info("設定を保存しました")
+                QMessageBox.information(self, "保存完了", "設定を保存しました。")
+                self.accept()
+            else:
+                self.logger.error("設定の保存に失敗しました")
+                QMessageBox.critical(self, "エラー", "設定の保存に失敗しました。")
             
         except Exception as e:
             self.logger.error(f"設定の保存中にエラーが発生しました: {str(e)}")

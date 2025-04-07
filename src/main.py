@@ -9,6 +9,10 @@ import sys
 import threading
 import logging
 import argparse
+import subprocess
+import json
+import re
+from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QLabel, QPushButton, QListWidget, QListWidgetItem, QSplitter,
@@ -693,7 +697,7 @@ class DiskUtilityApp(QMainWindow):
         self._refresh_disk_lists()
     
     def show_announcements(self):
-        """お知らせをコンソールに表示"""
+        """お知らせを新しいウィンドウで表示"""
         announcements = """
 【重要なお知らせ】
 
@@ -719,8 +723,34 @@ class DiskUtilityApp(QMainWindow):
 機能の改善のため、ご意見・ご要望をお待ちしています。
 GitHubのIssueでご報告ください。
 """
-        print(announcements)
-        QMessageBox.information(self, "お知らせ", "お知らせの内容をコンソールに表示しました。")
+        # お知らせダイアログを作成
+        dialog = QDialog(self)
+        dialog.setWindowTitle("お知らせ")
+        dialog.setMinimumWidth(600)
+        dialog.setMinimumHeight(400)
+        
+        # レイアウトを作成
+        layout = QVBoxLayout()
+        
+        # テキストエディタを作成
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setPlainText(announcements)
+        layout.addWidget(text_edit)
+        
+        # OKボタンを追加
+        ok_button = QPushButton("OK")
+        ok_button.clicked.connect(dialog.accept)
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(ok_button)
+        layout.addLayout(button_layout)
+        
+        # レイアウトをダイアログに設定
+        dialog.setLayout(layout)
+        
+        # ダイアログを表示
+        dialog.exec_()
 
 
 def main():

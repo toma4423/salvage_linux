@@ -42,29 +42,21 @@ class DiskUtils:
     
         self.supported_fs = ['ext4', 'ntfs', 'exfat', 'refs']
     
-    def get_unmounted_disks(self) -> List[str]:
+    def get_unmounted_disks(self) -> dict:
         """
         未マウントのディスクを取得します
 
         Returns:
-            List[str]: 未マウントディスクのリスト
+            dict: 未マウントディスクの情報を含む辞書
         """
         try:
-            # lsblkコマンドで未マウントディスクを取得
-            output = subprocess.check_output(["lsblk", "-n", "-o", "NAME"])
-            disks = []
-            for line in output.decode().splitlines():
-                if not line.strip():
-                    continue
-                name = line.strip()
-                if name.startswith("/dev/"):
-                    disks.append(name)
-                else:
-                    disks.append(f"/dev/{name}")
-            return disks
-        except subprocess.CalledProcessError as e:
+            # lsblkコマンドで未マウントディスクを取得（JSON形式）
+            output = subprocess.check_output(["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE"])
+            disks_data = json.loads(output.decode())
+            return disks_data
+        except (subprocess.CalledProcessError, json.JSONDecodeError) as e:
             self.logger.error(f"未マウントディスクの取得に失敗しました: {str(e)}")
-            return []
+            return {"blockdevices": []}
 
     def get_mounted_disks(self) -> List[str]:
         """
