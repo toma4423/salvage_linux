@@ -18,7 +18,7 @@ class Logger:
     ログレベルの設定、ログの出力先の指定、パスのサニタイズなどの機能を持ちます。
     """
     
-    def __init__(self, log_dir='logs', level=logging.INFO):
+    def __init__(self, log_dir=None, level=logging.INFO):
         """
         初期化メソッド
         
@@ -26,6 +26,10 @@ class Logger:
             log_dir (str): ログファイルを保存するディレクトリ
             level (int): ログレベル（logging.DEBUG, logging.INFO など）
         """
+        if log_dir is None:
+            # デフォルトのログディレクトリを設定
+            log_dir = os.path.join(os.path.expanduser("~"), ".config", "salvage_linux", "logs")
+            
         # ログディレクトリのパスをサニタイズ
         log_dir = self._sanitize_path(log_dir)
         

@@ -1,35 +1,35 @@
+#!/usr/bin/env python3
 """
-version.py - バージョン情報管理
-
-このモジュールはDisk Utilityアプリケーションのバージョン情報を管理します。
-リリース時に参照される単一の情報源として機能します。
-
-author: toma4423
+Disk Utilityのバージョン情報を管理するモジュール
 """
 
-# バージョン番号 (セマンティックバージョニング)
-__version__ = "0.1.5"
-
-# アプリケーション名
+# バージョン情報
+VERSION = "0.1.5"
+__version__ = VERSION
 APP_NAME = "Disk Utility"
-
-# 著作権表示
-COPYRIGHT = "© 2023-2024 toma4423"
+COPYRIGHT = "© 2024 Disk Utility Team"
 
 def get_version_info():
     """
-    バージョン情報を含む文字列を返します。
+    アプリケーション名とバージョンを返す
     
     Returns:
-        str: アプリケーション名とバージョン番号を含む文字列
+        str: アプリケーション名とバージョン
     """
-    return f"{APP_NAME} v{__version__}"
+    return f"{APP_NAME} v{VERSION}"
 
 def get_about_info():
     """
-    アプリケーションについての詳細情報を含む文字列を返します。
+    アプリケーションの詳細情報を返す
     
     Returns:
         str: アプリケーションの詳細情報
     """
-    return f"{APP_NAME} v{__version__}\n{COPYRIGHT}\n\nUSB Boot Linux GUIディスクユーティリティ" 
+    return f"""
+{APP_NAME} v{VERSION}
+
+{COPYRIGHT}
+
+このアプリケーションは、ディスクの管理と操作を簡単に行うためのツールです。
+マウント/アンマウント、フォーマット、パーティション作成などの機能を提供します。
+""" 

@@ -9,21 +9,23 @@ import os
 import re
 import shlex
 from pathlib import Path
-from .config_manager import ConfigManager
+from src.config_manager import ConfigManager
 
 class DiskUtils:
     """
     ディスク操作を行うクラス
     """
-    def __init__(self, logger, config_manager=None):
+    def __init__(self, logger, config_manager=None, test_mode=False):
         """
         初期化
         
         Args:
             logger: ロガーインスタンス
             config_manager (ConfigManager, optional): 設定マネージャーインスタンス
+            test_mode (bool): テストモードフラグ
         """
         self.logger = logger
+        self.test_mode = test_mode
         # 設定マネージャーが指定されていない場合は新しいインスタンスを作成
         self.config_manager = config_manager if config_manager else ConfigManager()
         
@@ -45,51 +47,66 @@ class DiskUtils:
         """
         self.logger.info("未マウントディスクのリストを取得中...")
         
+        if self.test_mode:
+            # テストモード用のモックデータ
+            mock_data = {
+                "blockdevices": [
+                    {
+                        "name": "disk0",
+                        "size": "500G",
+                        "type": "disk",
+                        "fstype": None,
+                        "mountpoint": None,
+                        "children": [
+                            {
+                                "name": "disk0s1",
+                                "size": "200M",
+                                "type": "part",
+                                "fstype": "efi",
+                                "mountpoint": "/boot/efi"
+                            },
+                            {
+                                "name": "disk0s2",
+                                "size": "450G",
+                                "type": "part",
+                                "fstype": "apfs",
+                                "mountpoint": "/"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "disk1",
+                        "size": "32G",
+                        "type": "disk",
+                        "fstype": None,
+                        "mountpoint": None,
+                        "children": [
+                            {
+                                "name": "disk1s1",
+                                "size": "32G",
+                                "type": "part",
+                                "fstype": None,
+                                "mountpoint": None
+                            }
+                        ]
+                    }
+                ]
+            }
+            return mock_data
+        
         try:
             # lsblkコマンドを実行して全ディスク情報をJSON形式で取得
             output = subprocess.check_output(
                 ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT"],
                 universal_newlines=True
             )
-            
-            disks_data = json.loads(output)
-            
-            # 未マウントのディスクとパーティションをフィルタリング
-            unmounted_disks = []
-            
-            for device in disks_data.get("blockdevices", []):
-                # ディスク自体の処理
-                if device.get("mountpoint") is None and device.get("type") == "disk":
-                    disk_info = {
-                        "name": device.get("name"),
-                        "path": f"/dev/{device.get('name')}",
-                        "size": device.get("size"),
-                        "type": device.get("type"),
-                        "fstype": device.get("fstype", "")
-                    }
-                    unmounted_disks.append(disk_info)
-                
-                # パーティションの処理
-                for partition in device.get("children", []):
-                    if partition.get("mountpoint") is None and partition.get("type") == "part":
-                        partition_info = {
-                            "name": partition.get("name"),
-                            "path": f"/dev/{partition.get('name')}",
-                            "size": partition.get("size"),
-                            "type": partition.get("type"),
-                            "fstype": partition.get("fstype", "")
-                        }
-                        unmounted_disks.append(partition_info)
-            
-            self.logger.info(f"未マウントディスク {len(unmounted_disks)} 件を検出")
-            return unmounted_disks
-            
+            return json.loads(output)
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"ディスク情報の取得に失敗しました: {str(e)}")
-            return []
+            self.logger.error(f"lsblkコマンドの実行に失敗しました: {e}")
+            return {"blockdevices": []}
         except json.JSONDecodeError as e:
-            self.logger.error(f"ディスク情報のJSONデコードに失敗しました: {str(e)}")
-            return []
+            self.logger.error(f"JSONのデコードに失敗しました: {e}")
+            return {"blockdevices": []}
     
     def get_mounted_disks(self):
         """
