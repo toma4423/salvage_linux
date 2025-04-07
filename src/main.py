@@ -65,7 +65,7 @@ class DiskUtilityApp(QMainWindow):
         self.logger = Logger()
         
         # ディスクユーティリティの初期化
-        self.disk_utils = DiskUtils(self.logger, self.config_manager, test_mode=test_mode)
+        self.disk_utils = DiskUtils(self.logger, test_mode=test_mode)
         
         # プロパティアナライザーの初期化
         self.properties_analyzer = DiskPropertiesAnalyzer(self.logger)
