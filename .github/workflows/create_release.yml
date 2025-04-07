@@ -48,11 +48,13 @@ jobs:
           git tag ${{ steps.get_version.outputs.new_tag }}
           git push origin ${{ steps.get_version.outputs.new_tag }}
       
-      - name: Download build artifact
+      - name: Download artifacts from previous workflow
         uses: actions/download-artifact@v4
         with:
           name: disk_utility
           path: dist
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
       
       - name: Create Release
         uses: softprops/action-gh-release@v2
