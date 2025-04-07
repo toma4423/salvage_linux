@@ -274,7 +274,7 @@ class DiskUtils:
                 except OSError as e:
                     error_msg = f"マウントポイントの作成に失敗しました: {str(e)}"
                     self.logger.error(error_msg)
-                    return False, "無効なマウントポイントが指定されました。", ""
+                    return False, error_msg, ""
             
             # ファイルシステムタイプを取得
             fs_type = self.get_filesystem_type(device_path)
