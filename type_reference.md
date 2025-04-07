@@ -67,6 +67,7 @@
 - `log_level` (int): ログレベル
 - `log_rotation` (int): ログローテーションサイズ
 - `log_backup_count` (int): ログバックアップ数
+- `messages` (List[str]): ログメッセージのリスト（テスト用）
 
 ### ConfigManager (src/config_manager.py)
 

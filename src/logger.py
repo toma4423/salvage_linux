@@ -38,13 +38,16 @@ class Logger:
         self._call_count = 0
         
         # パストラバーサル対策
-        self.log_dir = os.path.abspath(os.path.join(os.getcwd(), "logs"))
+        self.log_dir = os.path.abspath(os.path.join(os.getcwd(), log_dir))
         
         # ログディレクトリの作成とパーミッション設定
         self._setup_log_directory()
         
         # ログファイル名の設定
-        self.log_file = log_file
+        if log_file is None:
+            self.log_file = os.path.join(self.log_dir, "disk_utility.log")
+        else:
+            self.log_file = os.path.join(self.log_dir, log_file)
         
         # ロガーの設定
         self.logger = logging.getLogger('disk_utility')
@@ -56,26 +59,22 @@ class Logger:
         self.messages: List[str] = []  # テスト用にメッセージを保存するリスト
         
         try:
-            if log_file is None:
-                # 標準出力にログを出力するハンドラを設定
-                handler = logging.StreamHandler(sys.stdout)
-            else:
-                # ファイルが存在しない場合は作成
-                if not os.path.exists(log_file):
-                    with open(log_file, 'a') as f:
-                        pass
-                
-                # ログファイルのパーミッションを設定
-                os.chmod(log_file, 0o644)
-                
-                # ローテーティングファイルハンドラの設定
-                handler = logging.handlers.RotatingFileHandler(
-                    log_file,
-                    maxBytes=1024 * 1024,  # 1MB
-                    backupCount=5,
-                    encoding='utf-8',
-                    mode='a'
-                )
+            # ファイルが存在しない場合は作成
+            if not os.path.exists(self.log_file):
+                with open(self.log_file, 'a') as f:
+                    pass
+            
+            # ログファイルのパーミッションを設定
+            os.chmod(self.log_file, 0o644)
+            
+            # ローテーティングファイルハンドラの設定
+            handler = logging.handlers.RotatingFileHandler(
+                self.log_file,
+                maxBytes=1024 * 1024,  # 1MB
+                backupCount=5,
+                encoding='utf-8',
+                mode='a'
+            )
             
             # フォーマッタの設定
             formatter = logging.Formatter(
@@ -140,13 +139,18 @@ class Logger:
             message (str): ログメッセージ
         """
         try:
-            if self.log_file is not None:
-                with open(self.log_file, 'a', encoding='utf-8') as f:
-                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    log_line = f"{timestamp} {level} {message}\n"
-                    f.write(log_line)
-                    self._call_count += 1
+            # メソッド呼び出し回数を更新
+            self._call_count += 1
+            
+            # ログメッセージを保存
             self.messages.append(message)
+            
+            # ログを書き込み
+            with open(self.log_file, 'a', encoding='utf-8') as f:
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                log_line = f"{timestamp} {level} {message}\n"
+                f.write(log_line)
+                
         except Exception as e:
             print(f"ログの書き込みに失敗しました: {str(e)}")
     
