@@ -41,6 +41,8 @@ def mocked_tk():
 @pytest.fixture
 def qt_app():
     """QApplicationインスタンスを提供するフィクスチャ"""
+    # 環境変数を設定してヘッドレスモードを有効にする
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
     app = QApplication(sys.argv)
     yield app
     app.quit()
