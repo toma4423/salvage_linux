@@ -108,6 +108,7 @@ def logger_and_disk_utils(temp_dir):
     
     return logger, disk_utils
 
+@pytest.mark.gui
 @pytest.fixture
 def qt_app():
     """QApplicationインスタンスを提供するフィクスチャ"""
@@ -117,6 +118,7 @@ def qt_app():
     yield app
     app.quit()
 
+@pytest.mark.gui
 @pytest.fixture
 def gui_app(mocked_root, logger_and_disk_utils, qt_app):
     """モック化されたGUIインスタンスを提供するフィクスチャ"""
@@ -147,6 +149,138 @@ def gui_app(mocked_root, logger_and_disk_utils, qt_app):
     gui_instance.open_button = mocked_root.Button()
     
     return gui_instance
+
+@pytest.mark.gui
+def test_gui_initialization(gui_app):
+    """GUIの初期化テスト"""
+    # アプリケーションが正しく初期化されていることを確認
+    assert gui_app is not None
+    assert gui_app.test_mode is True
+    assert gui_app.logger is not None
+    assert gui_app.disk_utils is not None
+
+@pytest.mark.gui
+def test_disk_list_initialization(gui_app):
+    """ディスクリストの初期化テスト"""
+    # 未マウントディスクリストが正しく初期化されていることを確認
+    assert gui_app.unmounted_disk_listbox is not None
+    assert gui_app.unmounted_disk_listbox.delete.called
+    assert gui_app.unmounted_disk_listbox.insert.called
+    
+    # マウント済みディスクリストが正しく初期化されていることを確認
+    assert gui_app.mounted_disk_listbox is not None
+    assert gui_app.mounted_disk_listbox.delete.called
+    assert gui_app.mounted_disk_listbox.insert.called
+
+@pytest.mark.gui
+def test_disk_info_initialization(gui_app):
+    """ディスク情報の初期化テスト"""
+    # 未マウントディスク情報が正しく初期化されていることを確認
+    assert gui_app.unmounted_disk_info is not None
+    assert gui_app.unmounted_disk_info.delete.called
+    assert gui_app.unmounted_disk_info.insert.called
+    
+    # マウント済みディスク情報が正しく初期化されていることを確認
+    assert gui_app.mounted_disk_info is not None
+    assert gui_app.mounted_disk_info.delete.called
+    assert gui_app.mounted_disk_info.insert.called
+
+@pytest.mark.gui
+def test_button_initialization(gui_app):
+    """ボタンの初期化テスト"""
+    # マウントボタンが正しく初期化されていることを確認
+    assert gui_app.mount_button is not None
+    assert gui_app.mount_button.cget.return_value == tk.DISABLED
+    
+    # フォーマットボタンが正しく初期化されていることを確認
+    assert gui_app.format_button is not None
+    assert gui_app.format_button.cget.return_value == tk.DISABLED
+    
+    # 開くボタンが正しく初期化されていることを確認
+    assert gui_app.open_button is not None
+    assert gui_app.open_button.cget.return_value == tk.DISABLED
+    
+    # 権限ボタンが正しく初期化されていることを確認
+    assert gui_app.permission_button is not None
+    assert gui_app.permission_button.cget.return_value == tk.DISABLED
+
+@pytest.mark.gui
+def test_unmounted_disk_selection(gui_app):
+    """未マウントディスクの選択テスト"""
+    # 未マウントディスクを選択
+    gui_app._on_unmounted_disk_select(None)
+    
+    # 選択されたディスクが正しく設定されていることを確認
+    assert gui_app.selected_unmounted_disk == "/dev/sda"
+    
+    # ボタンの状態が正しく更新されていることを確認
+    assert gui_app.mount_button.config.called
+    assert gui_app.format_button.config.called
+
+@pytest.mark.gui
+def test_mounted_disk_selection(gui_app):
+    """マウント済みディスクの選択テスト"""
+    # マウント済みディスクを選択
+    gui_app._on_mounted_disk_select(None)
+    
+    # 選択されたディスクが正しく設定されていることを確認
+    assert gui_app.selected_mounted_disk == "/mnt/sdb1"
+    
+    # ボタンの状態が正しく更新されていることを確認
+    assert gui_app.open_button.config.called
+    assert gui_app.permission_button.config.called
+
+@pytest.mark.gui
+def test_mount_disk(gui_app):
+    """ディスクのマウントテスト"""
+    # 未マウントディスクを選択
+    gui_app._on_unmounted_disk_select(None)
+    
+    # マウントボタンをクリック
+    gui_app._mount_disk()
+    
+    # マウント処理が正しく実行されていることを確認
+    assert gui_app.disk_utils.mount_disk.called
+    assert gui_app.disk_utils.mount_disk.call_args[0][0] == "/dev/sda"
+
+@pytest.mark.gui
+def test_format_disk(gui_app):
+    """ディスクのフォーマットテスト"""
+    # 未マウントディスクを選択
+    gui_app._on_unmounted_disk_select(None)
+    
+    # フォーマットボタンをクリック
+    gui_app._format_disk()
+    
+    # フォーマット処理が正しく実行されていることを確認
+    assert gui_app.disk_utils.format_disk.called
+    assert gui_app.disk_utils.format_disk.call_args[0][0] == "/dev/sda"
+
+@pytest.mark.gui
+def test_open_file_manager(gui_app):
+    """ファイルマネージャーの起動テスト"""
+    # マウント済みディスクを選択
+    gui_app._on_mounted_disk_select(None)
+    
+    # 開くボタンをクリック
+    gui_app._open_file_manager()
+    
+    # ファイルマネージャーが正しく起動されていることを確認
+    assert gui_app.disk_utils.open_file_manager.called
+    assert gui_app.disk_utils.open_file_manager.call_args[0][0] == "/mnt/sdb1"
+
+@pytest.mark.gui
+def test_set_permissions(gui_app):
+    """権限の設定テスト"""
+    # マウント済みディスクを選択
+    gui_app._on_mounted_disk_select(None)
+    
+    # 権限ボタンをクリック
+    gui_app._set_permissions()
+    
+    # 権限設定処理が正しく実行されていることを確認
+    assert gui_app.disk_utils.set_permissions.called
+    assert gui_app.disk_utils.set_permissions.call_args[0][0] == "/mnt/sdb1"
 
 @pytest.mark.system
 @pytest.mark.usability

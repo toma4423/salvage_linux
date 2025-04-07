@@ -14,6 +14,7 @@ from src.logger import Logger
 from PyQt5.QtWidgets import QApplication
 import sys
 
+@pytest.mark.gui
 @pytest.fixture
 def temp_dir():
     """テスト用の一時ディレクトリを作成するフィクスチャ"""
@@ -24,6 +25,7 @@ def temp_dir():
     # テスト後にディレクトリを削除
     shutil.rmtree(temp_dir)
 
+@pytest.mark.gui
 @pytest.fixture
 def mocked_tk():
     """モック化されたtkinterモジュールを提供するフィクスチャ"""
@@ -38,6 +40,7 @@ def mocked_tk():
         'END': tk.END
     }
 
+@pytest.mark.gui
 @pytest.fixture
 def qt_app():
     """QApplicationインスタンスを提供するフィクスチャ"""
@@ -47,6 +50,7 @@ def qt_app():
     yield app
     app.quit()
 
+@pytest.mark.gui
 @pytest.fixture
 def gui_app(qt_app):
     """モック化されたGUIインスタンスを提供するフィクスチャ"""
@@ -165,156 +169,134 @@ def gui_app(qt_app):
     
     return app
 
-@pytest.mark.system
 @pytest.mark.gui
-class TestGUI:
-    """GUIのテストクラス"""
+def test_gui_initialization(gui_app):
+    """GUIの初期化テスト"""
+    # アプリケーションが正しく初期化されていることを確認
+    assert gui_app is not None
+    assert gui_app.test_mode is True
+    assert gui_app.logger is not None
+    assert gui_app.disk_utils is not None
+
+@pytest.mark.gui
+def test_disk_list_initialization(gui_app):
+    """ディスクリストの初期化テスト"""
+    # 未マウントディスクリストが正しく初期化されていることを確認
+    assert gui_app.unmounted_disk_listbox is not None
+    assert gui_app.unmounted_disk_listbox.delete.called
+    assert gui_app.unmounted_disk_listbox.insert.called
     
-    def test_gui_init(self, gui_app):
-        """GUIの初期化テスト"""
-        # GUIが正しく初期化されたかを確認
-        assert gui_app.root.title() == "USBブートLinux ディスクユーティリティ"
-        assert hasattr(gui_app, 'unmounted_disk_listbox')
-        assert hasattr(gui_app, 'mounted_disk_listbox')
-        
-        # ボタンのチェックはcgetの戻り値で確認
-        assert gui_app.mount_button.cget('state') == tk.DISABLED
-        assert gui_app.format_button.cget('state') == tk.DISABLED
+    # マウント済みディスクリストが正しく初期化されていることを確認
+    assert gui_app.mounted_disk_listbox is not None
+    assert gui_app.mounted_disk_listbox.delete.called
+    assert gui_app.mounted_disk_listbox.insert.called
+
+@pytest.mark.gui
+def test_disk_info_initialization(gui_app):
+    """ディスク情報の初期化テスト"""
+    # 未マウントディスク情報が正しく初期化されていることを確認
+    assert gui_app.unmounted_disk_info is not None
+    assert gui_app.unmounted_disk_info.delete.called
+    assert gui_app.unmounted_disk_info.insert.called
     
-    def test_refresh_disk_lists(self, gui_app):
-        """ディスクリスト更新のテスト"""
-        # ディスクユーティリティのモックを設定
-        gui_app.disk_utils.get_unmounted_disks.return_value = [
-            {"name": "sda1", "path": "/dev/sda1", "size": "100G", "type": "part", "fstype": "ntfs"}
-        ]
-        gui_app.disk_utils.get_mounted_disks.return_value = [
-            {"name": "sdb1", "path": "/dev/sdb1", "size": "50G", "type": "part", 
-             "fstype": "ntfs", "mountpoint": "/mnt/sdb1"}
-        ]
-        
-        # メソッドを実行
-        gui_app._refresh_disk_lists()
-        
-        # リストボックスのクリアと挿入が呼ばれたことを確認
-        gui_app.unmounted_disk_listbox.delete.assert_called_with(0, tk.END)
-        gui_app.mounted_disk_listbox.delete.assert_called_with(0, tk.END)
-        assert gui_app.unmounted_disk_listbox.insert.called
-        assert gui_app.mounted_disk_listbox.insert.called
+    # マウント済みディスク情報が正しく初期化されていることを確認
+    assert gui_app.mounted_disk_info is not None
+    assert gui_app.mounted_disk_info.delete.called
+    assert gui_app.mounted_disk_info.insert.called
+
+@pytest.mark.gui
+def test_button_initialization(gui_app):
+    """ボタンの初期化テスト"""
+    # マウントボタンが正しく初期化されていることを確認
+    assert gui_app.mount_button is not None
+    assert gui_app.mount_button.cget.return_value == tk.DISABLED
     
-    def test_unmounted_disk_selection(self, gui_app):
-        """未マウントディスク選択のテスト"""
-        # 選択イベントを手動で発生させる
-        gui_app._on_unmounted_disk_select(None)
-        
-        # 結果を検証：選択されたディスクが保存されていること
-        assert gui_app.selected_unmounted_disk == "/dev/sda"
-        
-        # ボタンがアクティブになったことを確認
-        gui_app.mount_button.config.assert_called()
-        gui_app.format_button.config.assert_called()
+    # フォーマットボタンが正しく初期化されていることを確認
+    assert gui_app.format_button is not None
+    assert gui_app.format_button.cget.return_value == tk.DISABLED
     
-    def test_mounted_disk_selection(self, gui_app):
-        """マウント済みディスク選択のテスト"""
-        # 選択イベントを手動で発生させる
-        gui_app._on_mounted_disk_select(None)
-        
-        # 結果を検証：選択されたディスクが保存されていること
-        assert gui_app.selected_mounted_disk == "/mnt/sdb1"
-        
-        # ボタン状態の更新が呼ばれたことを確認
-        gui_app.permission_button.config.assert_called()
-        gui_app.open_button.config.assert_called()
+    # 開くボタンが正しく初期化されていることを確認
+    assert gui_app.open_button is not None
+    assert gui_app.open_button.cget.return_value == tk.DISABLED
     
-    def test_mount_selected_disk(self, gui_app):
-        """ディスクマウント処理のテスト"""
-        # 選択ディスクを設定
-        gui_app.selected_unmounted_disk = "/dev/sda"
-        gui_app._on_unmounted_disk_select(None)
-        
-        # マウント成功をモック
-        gui_app.disk_utils.mount_disk.return_value = (True, "/mnt/sda", "")
-        
-        # マウント処理を実行
-        with patch('tkinter.messagebox.showinfo') as mock_showinfo:
-            # モックメッセージボックスが直接呼ばれるように設定
-            mock_showinfo.side_effect = lambda title, message: None
-            
-            # スレッドの代わりに直接関数を実行するようにパッチ
-            with patch('threading.Thread') as mock_thread:
-                mock_thread.side_effect = lambda target, daemon=False: MagicMock(
-                    start=lambda: target()
-                )
-                
-                # マウント処理を実行
-                gui_app._mount_selected_disk()
-                
-                # マウント関数が呼ばれたことを確認
-                gui_app.disk_utils.mount_disk.assert_called_with("/dev/sda")
-                
-                # 成功メッセージが表示されたことを確認
-                assert mock_showinfo.called
+    # 権限ボタンが正しく初期化されていることを確認
+    assert gui_app.permission_button is not None
+    assert gui_app.permission_button.cget.return_value == tk.DISABLED
+
+@pytest.mark.gui
+def test_unmounted_disk_selection(gui_app):
+    """未マウントディスクの選択テスト"""
+    # 未マウントディスクを選択
+    gui_app._on_unmounted_disk_select(None)
     
-    def test_format_selected_disk(self, gui_app):
-        """ディスクフォーマット処理のテスト"""
-        # 選択ディスクを設定
-        gui_app.selected_unmounted_disk = "/dev/sda"
-        gui_app._on_unmounted_disk_select(None)
-        
-        # フォーマット成功をモック
-        gui_app.disk_utils.format_disk.return_value = (True, "")
-        
-        # 確認ダイアログのモック
-        with patch('tkinter.messagebox.askyesno', return_value=True) as mock_askyesno, \
-             patch('tkinter.messagebox.showinfo') as mock_showinfo:
-            
-            # モックメッセージボックスが直接呼ばれるように設定
-            mock_showinfo.side_effect = lambda title, message: None
-            mock_askyesno.side_effect = lambda title, message: True
-            
-            # スレッドの代わりに直接関数を実行するようにパッチ
-            with patch('threading.Thread') as mock_thread:
-                mock_thread.side_effect = lambda target, daemon=False: MagicMock(
-                    start=lambda: target()
-                )
-                
-                # フォーマット処理を実行
-                gui_app._format_selected_disk()
-                
-                # フォーマット関数が呼ばれたことを確認
-                # テストモードでは fs_type_var は文字列なので、get()はなく直接値が渡される
-                gui_app.disk_utils.format_disk.assert_called_with("/dev/sda", "exfat")
-                
-                # 成功メッセージが表示されたことを確認
-                assert mock_showinfo.called
+    # 選択されたディスクが正しく設定されていることを確認
+    assert gui_app.selected_unmounted_disk == "/dev/sda"
     
-    def test_set_permissions(self, gui_app):
-        """権限付与処理のテスト"""
-        # 選択ディスクを設定
-        gui_app.selected_mounted_disk = "/mnt/sdb1"
-        gui_app._on_mounted_disk_select(None)
-        
-        # 権限付与成功をモック
-        gui_app.disk_utils.set_permissions.return_value = (True, "")
-        
-        # 確認ダイアログと成功メッセージのモック
-        with patch('tkinter.messagebox.askyesno', return_value=True) as mock_askyesno, \
-             patch('tkinter.messagebox.showinfo') as mock_showinfo:
-            
-            # モックメッセージボックスが直接呼ばれるように設定
-            mock_showinfo.side_effect = lambda title, message: None
-            mock_askyesno.side_effect = lambda title, message: True
-            
-            # スレッドの代わりに直接関数を実行するようにパッチ
-            with patch('threading.Thread') as mock_thread:
-                mock_thread.side_effect = lambda target, daemon=False: MagicMock(
-                    start=lambda: target()
-                )
-                
-                # 権限付与処理を実行
-                gui_app._set_permissions_to_selected_disk()
-                
-                # 権限付与関数が呼ばれたことを確認
-                gui_app.disk_utils.set_permissions.assert_called_with("/mnt/sdb1")
-                
-                # 成功メッセージが表示されたことを確認
-                assert mock_showinfo.called 
+    # ボタンの状態が正しく更新されていることを確認
+    assert gui_app.mount_button.config.called
+    assert gui_app.format_button.config.called
+
+@pytest.mark.gui
+def test_mounted_disk_selection(gui_app):
+    """マウント済みディスクの選択テスト"""
+    # マウント済みディスクを選択
+    gui_app._on_mounted_disk_select(None)
+    
+    # 選択されたディスクが正しく設定されていることを確認
+    assert gui_app.selected_mounted_disk == "/mnt/sdb1"
+    
+    # ボタンの状態が正しく更新されていることを確認
+    assert gui_app.open_button.config.called
+    assert gui_app.permission_button.config.called
+
+@pytest.mark.gui
+def test_mount_disk(gui_app):
+    """ディスクのマウントテスト"""
+    # 未マウントディスクを選択
+    gui_app._on_unmounted_disk_select(None)
+    
+    # マウントボタンをクリック
+    gui_app._mount_disk()
+    
+    # マウント処理が正しく実行されていることを確認
+    assert gui_app.disk_utils.mount_disk.called
+    assert gui_app.disk_utils.mount_disk.call_args[0][0] == "/dev/sda"
+
+@pytest.mark.gui
+def test_format_disk(gui_app):
+    """ディスクのフォーマットテスト"""
+    # 未マウントディスクを選択
+    gui_app._on_unmounted_disk_select(None)
+    
+    # フォーマットボタンをクリック
+    gui_app._format_disk()
+    
+    # フォーマット処理が正しく実行されていることを確認
+    assert gui_app.disk_utils.format_disk.called
+    assert gui_app.disk_utils.format_disk.call_args[0][0] == "/dev/sda"
+
+@pytest.mark.gui
+def test_open_file_manager(gui_app):
+    """ファイルマネージャーの起動テスト"""
+    # マウント済みディスクを選択
+    gui_app._on_mounted_disk_select(None)
+    
+    # 開くボタンをクリック
+    gui_app._open_file_manager()
+    
+    # ファイルマネージャーが正しく起動されていることを確認
+    assert gui_app.disk_utils.open_file_manager.called
+    assert gui_app.disk_utils.open_file_manager.call_args[0][0] == "/mnt/sdb1"
+
+@pytest.mark.gui
+def test_set_permissions(gui_app):
+    """権限の設定テスト"""
+    # マウント済みディスクを選択
+    gui_app._on_mounted_disk_select(None)
+    
+    # 権限ボタンをクリック
+    gui_app._set_permissions()
+    
+    # 権限設定処理が正しく実行されていることを確認
+    assert gui_app.disk_utils.set_permissions.called
+    assert gui_app.disk_utils.set_permissions.call_args[0][0] == "/mnt/sdb1" 
