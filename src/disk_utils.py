@@ -10,12 +10,14 @@ import re
 import shlex
 from pathlib import Path
 from src.config_manager import ConfigManager
+from typing import Tuple, List, Optional
+from .logger import Logger
 
 class DiskUtils:
     """
     ディスク操作を行うクラス
     """
-    def __init__(self, logger, config_manager=None, test_mode=False):
+    def __init__(self, logger: Logger, config_manager=None, test_mode=False):
         """
         初期化
         
@@ -38,151 +40,74 @@ class DiskUtils:
         # 許可されたファイルシステムタイプのリスト
         self.allowed_fs_types = ["ntfs", "exfat", "ext4", "ext3", "ext2", "fat32", "vfat", "refs"]
     
-    def get_unmounted_disks(self):
+        self.supported_fs = ['ext4', 'ntfs', 'exfat', 'refs']
+    
+    def get_unmounted_disks(self) -> List[str]:
         """
-        未マウントのディスクとパーティションのリストを取得
-        
+        未マウントのディスクを取得します
+
         Returns:
-            list: 未マウントディスクの情報リスト
+            List[str]: 未マウントディスクのリスト
         """
-        self.logger.info("未マウントディスクのリストを取得中...")
-        
-        if self.test_mode:
-            # テストモード用のモックデータ
-            mock_data = [
-                {
-                    "name": "disk0",
-                    "size": "500G",
-                    "type": "disk",
-                    "fstype": None,
-                    "mountpoint": None,
-                    "children": [
-                        {
-                            "name": "disk0s1",
-                            "size": "200M",
-                            "type": "part",
-                            "fstype": "efi",
-                            "mountpoint": "/boot/efi"
-                        },
-                        {
-                            "name": "disk0s2",
-                            "size": "450G",
-                            "type": "part",
-                            "fstype": "apfs",
-                            "mountpoint": "/"
-                        }
-                    ]
-                },
-                {
-                    "name": "disk1",
-                    "size": "32G",
-                    "type": "disk",
-                    "fstype": None,
-                    "mountpoint": None,
-                    "children": [
-                        {
-                            "name": "disk1s1",
-                            "size": "32G",
-                            "type": "part",
-                            "fstype": None,
-                            "mountpoint": None
-                        }
-                    ]
-                }
-            ]
-            return mock_data
-        
         try:
-            # lsblkコマンドを実行して全ディスク情報をJSON形式で取得
-            output = subprocess.check_output(
-                ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT"],
-                universal_newlines=True
-            )
-            data = json.loads(output)
-            return data.get("blockdevices", [])
+            # lsblkコマンドで未マウントディスクを取得
+            output = subprocess.check_output(["lsblk", "-n", "-o", "NAME"])
+            disks = []
+            for line in output.decode().splitlines():
+                if not line.strip():
+                    continue
+                name = line.strip()
+                if name.startswith("/dev/"):
+                    disks.append(name)
+                else:
+                    disks.append(f"/dev/{name}")
+            return disks
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"lsblkコマンドの実行に失敗しました: {e}")
+            self.logger.error(f"未マウントディスクの取得に失敗しました: {str(e)}")
             return []
-        except json.JSONDecodeError as e:
-            self.logger.error(f"JSONのデコードに失敗しました: {e}")
+
+    def get_mounted_disks(self) -> List[str]:
+        """
+        マウント済みのディスクの一覧を取得します
+
+        Returns:
+            List[str]: マウント済みディスクのパスのリスト
+        """
+        try:
+            output = subprocess.check_output(["mount"], stderr=subprocess.DEVNULL)
+            mounts = output.decode('utf-8').strip().split('\n')
+            disks = []
+            for mount in mounts:
+                if mount.startswith('/dev/'):
+                    disk = mount.split()[0]
+                    disks.append(disk)
+            return disks
+        except (subprocess.CalledProcessError, UnicodeDecodeError):
+            self.logger.error("マウント済みディスクの取得に失敗しました")
             return []
     
-    def get_mounted_disks(self):
+    def get_filesystem_type(self, device_path: str) -> str:
         """
-        マウント済みのディスクとパーティションのリストを取得
-        
-        Returns:
-            list: マウント済みディスクの情報リスト
-        """
-        self.logger.info("マウント済みディスクのリストを取得中...")
-        
-        try:
-            # lsblkコマンドを実行して全ディスク情報をJSON形式で取得
-            output = subprocess.check_output(
-                ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT"],
-                universal_newlines=True
-            )
-            
-            disks_data = json.loads(output)
-            
-            # マウント済みのディスクとパーティションをフィルタリング
-            mounted_disks = []
-            
-            for device in disks_data.get("blockdevices", []):
-                # ディスク自体の処理
-                if device.get("mountpoint") is not None and device.get("type") == "disk":
-                    disk_info = {
-                        "name": device.get("name"),
-                        "path": f"/dev/{device.get('name')}",
-                        "size": device.get("size"),
-                        "type": device.get("type"),
-                        "fstype": device.get("fstype", ""),
-                        "mountpoint": device.get("mountpoint")
-                    }
-                    mounted_disks.append(disk_info)
-                
-                # パーティションの処理
-                for partition in device.get("children", []):
-                    if partition.get("mountpoint") is not None and partition.get("type") == "part":
-                        # ルートファイルシステムなど、システムディスクは除外
-                        if partition.get("mountpoint") not in ["/", "/boot", "/home"]:
-                            partition_info = {
-                                "name": partition.get("name"),
-                                "path": f"/dev/{partition.get('name')}",
-                                "size": partition.get("size"),
-                                "type": partition.get("type"),
-                                "fstype": partition.get("fstype", ""),
-                                "mountpoint": partition.get("mountpoint")
-                            }
-                            mounted_disks.append(partition_info)
-            
-            self.logger.info(f"マウント済みディスク {len(mounted_disks)} 件を検出")
-            return mounted_disks
-            
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"ディスク情報の取得に失敗しました: {str(e)}")
-            return []
-        except json.JSONDecodeError as e:
-            self.logger.error(f"ディスク情報のJSONデコードに失敗しました: {str(e)}")
-            return []
-    
-    def get_filesystem_type(self, device_path):
-        """
-        デバイスのファイルシステムタイプを取得
-        
+        デバイスのファイルシステムタイプを取得します
+
         Args:
-            device_path (str): デバイスパス（例: /dev/sda1）
-            
+            device_path (str): デバイスパス
+
         Returns:
-            str: ファイルシステムタイプ（不明な場合は空文字列）
+            str: ファイルシステムタイプ（取得できない場合は空文字列）
         """
         try:
-            output = subprocess.check_output(
-                ["blkid", "-o", "value", "-s", "TYPE", device_path],
-                universal_newlines=True
-            )
-            return output.strip()
-        except subprocess.CalledProcessError:
+            output = subprocess.check_output(["blkid", device_path], stderr=subprocess.DEVNULL)
+            output_str = output.decode('utf-8')
+            
+            # TYPE="ext4"のような形式からファイルシステムタイプを抽出
+            match = re.search(r'TYPE="([^"]+)"', output_str)
+            if match:
+                return match.group(1)
+            
+            return ""
+        except (subprocess.CalledProcessError, UnicodeDecodeError):
+            self.logger.error(f"ファイルシステムタイプの取得に失敗しました: {device_path}")
             return ""
     
     def _is_valid_path(self, path):
@@ -200,19 +125,25 @@ class DiskUtils:
             return False
         
         # パスに特殊文字が含まれていないことを確認
-        if re.search(r'[;&|`$]', path):
+        if re.search(r'[;&|`$(){}[\]<>!?*]', path):
             return False
         
         # パスに相対パスが含まれていないことを確認
-        if ".." in path:
+        if ".." in path or "~" in path:
             return False
         
         # デバイスパスの場合は/dev/で始まることを確認
         if path.startswith("/dev/"):
+            # デバイスパスが単純な形式であることを確認
+            if not re.match(r'^/dev/[a-zA-Z0-9]+$', path):
+                return False
             return True
         
         # マウントポイントの場合は絶対パスであることを確認
         if path.startswith("/"):
+            # マウントポイントが単純な形式であることを確認
+            if not re.match(r'^/[a-zA-Z0-9/_-]+$', path):
+                return False
             return True
         
         return False
@@ -250,225 +181,190 @@ class DiskUtils:
                 
         return False
     
-    def mount_disk(self, device_path, mount_point=None):
+    def mount_disk(self, device_path: str, mount_point: str) -> Tuple[bool, str]:
         """
-        ディスクをマウント
-        
+        ディスクをマウントします
+
         Args:
-            device_path (str): デバイスパス（例: /dev/sda1）
-            mount_point (str, optional): マウントポイント（指定しない場合は自動生成）
-            
+            device_path (str): デバイスパス
+            mount_point (str): マウントポイント
+
         Returns:
-            tuple: (成功したかどうか, マウントポイント, エラーメッセージ)
+            Tuple[bool, str]: (成功したかどうか, メッセージ)
         """
-        # パスのバリデーション
-        if not self._is_valid_path(device_path):
-            self.logger.error(f"無効なデバイスパス: {device_path}")
-            return False, "無効なデバイスパスが指定されました。", ""
-        
+        # デバイスパスの検証
+        if not device_path.startswith("/dev/"):
+            return False, "デバイスパスは/dev/で始まる必要があります"
+
+        # マウントポイントの検証
+        if not mount_point.startswith("/"):
+            return False, "マウントポイントは/で始まる必要があります"
+
         try:
-            # マウントポイントが指定されていない場合は自動生成
-            if mount_point is None:
-                device_name = os.path.basename(device_path)
-                mount_point = f"/mnt/{device_name}"
-            
-            # マウントポイントのバリデーション
-            if not self._is_valid_path(mount_point):
-                self.logger.error(f"無効なマウントポイント: {mount_point}")
-                return False, "無効なマウントポイントが指定されました。", ""
-            
-            # システムディレクトリへのマウントを防止
-            if self._is_system_directory(mount_point):
-                error_msg = f"システムディレクトリへのマウントはできません: {mount_point}"
-                self.logger.error(error_msg)
-                return False, error_msg, ""
-            
-            # マウントポイントディレクトリが存在しない場合は作成
+            # マウントポイントが存在しない場合は作成
             if not os.path.exists(mount_point):
                 try:
                     os.makedirs(mount_point)
                 except OSError as e:
-                    error_msg = f"マウントポイントの作成に失敗しました: {str(e)}"
-                    self.logger.error(error_msg)
-                    return False, error_msg, ""
-            
+                    self.logger.error("マウントポイントの作成に失敗しました")
+                    return False, "マウントポイントの作成に失敗しました"
+
             # ファイルシステムタイプを取得
             fs_type = self.get_filesystem_type(device_path)
-            
-            # マウントコマンドを構築
-            mount_cmd = ["mount"]
-            
-            if fs_type == "ntfs":
-                mount_cmd.extend(["-t", "ntfs-3g"])
-            elif fs_type == "exfat":
-                mount_cmd.extend(["-t", "exfat"])
-            
-            mount_cmd.extend([device_path, mount_point])
-            
+            if not fs_type:
+                return False, "ファイルシステムタイプを取得できませんでした"
+
             # マウントコマンドを実行
-            self.logger.info(f"{device_path} を {mount_point} にマウント中...")
-            subprocess.check_call(mount_cmd)
-            
-            self.logger.info(f"{device_path} を {mount_point} にマウント成功")
-            return True, mount_point, ""
-            
+            subprocess.check_call(["mount", "-t", fs_type, device_path, mount_point])
+            self.logger.info(f"{device_path}を{mount_point}にマウントしました")
+            return True, "ディスクのマウントに成功しました"
+        except OSError as e:
+            self.logger.error(f"マウントに失敗しました: {str(e)}")
+            return False, f"マウントに失敗しました: {str(e)}"
         except subprocess.CalledProcessError as e:
-            error_msg = f"{device_path} のマウントに失敗しました: {str(e)}"
-            self.logger.error(error_msg)
-            return False, error_msg, ""
-    
-    def format_disk(self, device_path, fs_type="exfat"):
+            self.logger.error(f"マウントに失敗しました: {str(e)}")
+            return False, f"マウントに失敗しました: {str(e)}"
+
+    def _validate_path(self, path: str) -> Tuple[bool, str]:
         """
-        ディスクをフォーマット
-        
+        パスが有効かどうかを検証します
+
         Args:
-            device_path (str): デバイスパス（例: /dev/sda1）
-            fs_type (str): フォーマットするファイルシステムタイプ（"ntfs"、"exfat"、"refs"など）
-            
+            path (str): 検証するパス
+
         Returns:
-            tuple: (成功したかどうか, エラーメッセージ)
+            Tuple[bool, str]: (有効かどうか, エラーメッセージ)
         """
-        # パスのバリデーション
-        if not self._is_valid_path(device_path):
-            error_msg = f"無効なデバイスパス: {device_path}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
-        # ファイルシステムタイプのバリデーション
-        if fs_type not in self.allowed_fs_types:
-            error_msg = f"サポートされていないファイルシステムタイプ: {fs_type}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
-        # システムディレクトリをフォーマットから保護
-        if self._is_system_directory(device_path):
-            error_msg = f"システムディレクトリはフォーマットできません: {device_path}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
-        # ReFSツールのチェック
-        if fs_type.lower() == "refs" and not self._check_refs_tools_available():
-            error_msg = "ReFSツールが見つかりません。必要なツールをインストールしてください。"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
-        # コマンドを構築
-        if fs_type.lower() == "ntfs":
-            format_cmd = ["mkfs.ntfs", "-f", device_path]
-        elif fs_type.lower() == "exfat":
-            format_cmd = ["mkfs.exfat", device_path]
-        elif fs_type.lower() == "refs":
-            format_cmd = ["mkfs.refs", device_path]
-        else:
-            error_msg = f"サポートされていないファイルシステムタイプ: {fs_type}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
+        if not path:
+            return False, "パスが空です"
+
+        if ".." in path or "//" in path:
+            return False, "不正なパスが含まれています"
+
+        if not path.startswith("/dev/"):
+            return False, "デバイスパスは/dev/で始まる必要があります"
+
+        return True, ""
+
+    def format_disk(self, device_path: str, filesystem_type: str) -> Tuple[bool, str]:
+        """
+        ディスクをフォーマットします
+
+        Args:
+            device_path (str): デバイスパス
+            filesystem_type (str): ファイルシステムタイプ
+
+        Returns:
+            Tuple[bool, str]: (成功したかどうか, メッセージ)
+        """
+        # デバイスパスの検証
+        if not device_path.startswith("/dev/"):
+            return False, "デバイスパスは/dev/で始まる必要があります"
+
+        # サポートされているファイルシステムかチェック
+        if filesystem_type not in ["ntfs", "exfat", "refs"]:
+            self.logger.error(f"サポートされていないファイルシステムです: {filesystem_type}")
+            return False, f"サポートされていないファイルシステムです: {filesystem_type}"
+
+        # ReFSの場合、ツールの存在をチェック
+        if filesystem_type == "refs":
+            if not self._check_refs_tools_available():
+                self.logger.error("ReFSツールが見つかりません")
+                return False, "ReFSツールが見つかりません"
+
         try:
-            self.logger.info(f"{device_path} を {fs_type} でフォーマット中...")
-            subprocess.check_call(format_cmd)
-            self.logger.info(f"{device_path} のフォーマット成功")
-            return True, ""
+            # フォーマットコマンドを実行
+            if filesystem_type == "ntfs":
+                subprocess.check_call(["mkfs.ntfs", device_path])
+            elif filesystem_type == "exfat":
+                subprocess.check_call(["mkfs.exfat", device_path])
+            elif filesystem_type == "refs":
+                subprocess.check_call(["mkfs.refs", device_path])
+
+            self.logger.info(f"{device_path}を{filesystem_type}でフォーマットしました")
+            return True, "ディスクのフォーマットに成功しました"
         except subprocess.CalledProcessError as e:
-            error_msg = f"{device_path} のフォーマットに失敗しました: {str(e)}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        except FileNotFoundError as e:
-            error_msg = f"ReFSツールが見つかりません: {str(e)}"
-            self.logger.error(error_msg)
-            return False, error_msg
-    
-    def set_permissions(self, mount_point):
+            self.logger.error(f"フォーマットに失敗しました: {str(e)}")
+            return False, f"フォーマットに失敗しました: {str(e)}"
+
+    def set_permissions(self, path: str) -> Tuple[bool, str]:
         """
-        マウントポイント以下のファイルとディレクトリに最大権限を付与
-        
+        パスの権限を設定します
+
         Args:
-            mount_point (str): マウントポイント
-            
+            path (str): 権限を設定するパス
+
         Returns:
-            tuple: (成功したかどうか, エラーメッセージ)
+            Tuple[bool, str]: (成功したかどうか, メッセージ)
         """
-        # パスのバリデーション
-        if not self._is_valid_path(mount_point):
-            error_msg = f"無効なマウントポイント: {mount_point}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
-        # システムディレクトリへの権限付与から保護
-        if self._is_system_directory(mount_point):
-            error_msg = f"システムディレクトリへの権限付与はできません: {mount_point}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
+        # パスの検証
+        if not path.startswith("/"):
+            return False, "パスは/で始まる必要があります"
+
         try:
-            self.logger.info(f"{mount_point} に権限を付与中...")
-            subprocess.check_call(["chmod", "-R", "777", mount_point])
-            self.logger.info(f"{mount_point} への権限付与成功")
-            return True, ""
+            # 権限を設定
+            subprocess.check_call(["chmod", "755", path])
+            self.logger.info(f"{path}の権限を設定しました")
+            return True, "マウントポイントの権限を設定しました"
         except subprocess.CalledProcessError as e:
-            error_msg = f"{mount_point} への権限付与に失敗しました: {str(e)}"
-            self.logger.error(error_msg)
-            return False, error_msg
-    
-    def open_file_manager(self, mount_point):
+            self.logger.error(f"権限設定エラー: {str(e)}")
+            return False, f"権限設定エラー: {str(e)}"
+
+    def open_file_manager(self, path: str) -> Tuple[bool, str]:
         """
-        指定したマウントポイントをファイルマネージャーで開く
-        環境に応じて適切なファイルマネージャーを検出して使用します
-        
+        ファイルマネージャーでパスを開きます
+
         Args:
-            mount_point (str): マウントポイント
-            
+            path (str): 開くパス
+
         Returns:
-            tuple: (成功したかどうか, エラーメッセージ)
+            Tuple[bool, str]: (成功したかどうか, メッセージ)
         """
-        # パスのバリデーション
-        if not self._is_valid_path(mount_point):
-            error_msg = f"無効なマウントポイント: {mount_point}"
-            self.logger.error(error_msg)
-            return False, error_msg
-        
-        # 設定から指定されたファイルマネージャーを取得
-        file_manager_setting = self.config_manager.get_file_manager()
-        
-        # ファイルマネージャーリストの設定
-        if isinstance(file_manager_setting, list):
-            # 'auto'の場合は設定に保存されているリストを使用
-            file_managers = file_manager_setting
-        else:
-            # 特定のファイルマネージャーが指定されている場合
-            file_managers = [file_manager_setting]
-        
-        self.logger.info(f"{mount_point} をファイルマネージャーで開いています...")
-        
-        # 有効なファイルマネージャーを順番に試す
+        # パスの検証
+        if not path.startswith("/"):
+            return False, "パスは/で始まる必要があります"
+
+        # パスの存在確認
+        if not os.path.exists(path):
+            self.logger.error(f"パスが存在しません: {path}")
+            return False, f"パスが存在しません: {path}"
+
+        # 利用可能なファイルマネージャーのリスト
+        file_managers = [
+            ["xdg-open"],
+            ["nautilus"],
+            ["nemo"],
+            ["dolphin"],
+            ["thunar"],
+            ["pcmanfm"],
+            ["open"]  # macOS用
+        ]
+
+        # ファイルマネージャーの存在確認
+        available_managers = []
         for manager in file_managers:
             try:
-                # スペースが含まれる場合はシェルコマンドとして実行
-                if " " in manager:
-                    subprocess.Popen(f"{manager} {mount_point}", shell=True)
-                    self.logger.info(f"ファイルマネージャー {manager} でマウントポイントを開きました")
-                    return True, ""
-                else:
-                    # 事前にファイルマネージャーが利用可能かチェック
-                    try:
-                        subprocess.check_call(["which", manager], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        # ファイルマネージャーが見つかったら実行
-                        subprocess.Popen([manager, mount_point])
-                        self.logger.info(f"ファイルマネージャー {manager} でマウントポイントを開きました")
-                        return True, ""
-                    except subprocess.CalledProcessError:
-                        # このファイルマネージャーは利用できないので次を試す
-                        continue
-            except Exception as e:
-                # このファイルマネージャーでは失敗したので次を試す
-                self.logger.warning(f"ファイルマネージャー {manager} での起動に失敗しました: {str(e)}")
+                subprocess.check_call(["which", manager[0]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                available_managers.append(manager)
+            except (subprocess.CalledProcessError, OSError):
                 continue
-        
-        # すべてのファイルマネージャーが失敗した場合
-        error_msg = "利用可能なファイルマネージャーが見つかりません"
-        self.logger.error(error_msg)
-        return False, error_msg
 
+        if not available_managers:
+            self.logger.error("利用可能なファイルマネージャーが見つかりません")
+            return False, "利用可能なファイルマネージャーが見つかりません"
+
+        # ファイルマネージャーで開く
+        for manager in available_managers:
+            try:
+                subprocess.Popen(manager + [path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.logger.info(f"{path}をファイルマネージャーで開きました")
+                return True, "ファイルマネージャーを起動しました"
+            except (subprocess.CalledProcessError, OSError):
+                continue
+
+        self.logger.error("利用可能なファイルマネージャーが見つかりません")
+        return False, "利用可能なファイルマネージャーが見つかりません"
+    
     def find_disk_by_display_name(self, display_name, unmounted_only=False, mounted_only=False):
         """
         表示名からディスク情報を取得

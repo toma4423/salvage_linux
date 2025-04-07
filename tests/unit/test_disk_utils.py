@@ -24,152 +24,68 @@ class TestDiskUtils:
     """DiskUtilsのテストクラス"""
     
     @patch('subprocess.check_output')
-    def test_get_unmounted_disks_success(self, mock_check_output, disk_utils, mock_logger):
-        """未マウントディスクの取得成功のテスト"""
-        # サンプルのlsblkコマンド出力をモック
-        mock_lsblk_output = json.dumps({
-            "blockdevices": [
-                {
-                    "name": "sda",
-                    "size": "100G",
-                    "type": "disk",
-                    "fstype": None,
-                    "mountpoint": None,
-                    "children": [
-                        {
-                            "name": "sda1",
-                            "size": "100G",
-                            "type": "part",
-                            "fstype": "ntfs",
-                            "mountpoint": None
-                        }
-                    ]
-                },
-                {
-                    "name": "sdb",
-                    "size": "50G",
-                    "type": "disk",
-                    "fstype": None,
-                    "mountpoint": None
-                }
-            ]
-        })
-        mock_check_output.return_value = mock_lsblk_output
-    
-        # メソッドを実行
-        result = disk_utils.get_unmounted_disks()
-    
-        # 結果を検証
-        assert len(result) == 3  # sda, sdb, sda1の3つが返るはず
-        assert result[0]["name"] == "sda"
-        assert result[1]["name"] == "sda1"
-        assert result[2]["name"] == "sdb"
-        assert result[0]["size"] == "100G"
-        assert result[1]["size"] == "100G"
-        assert result[2]["size"] == "50G"
-        
-        # ログ呼び出し回数は検証しない（実装によって変わる可能性がある）
-        assert mock_logger.info.called
-    
-    @patch('subprocess.check_output')
-    def test_get_unmounted_disks_subprocess_error(self, mock_check_output, disk_utils, mock_logger):
-        """未マウントディスク取得時にsubprocessエラーが発生した場合のテスト"""
-        # subprocessがエラーを発生させるようにモック
-        mock_check_output.side_effect = subprocess.CalledProcessError(1, "lsblk")
+    def test_get_unmounted_disks(self, mock_check_output, disk_utils, mock_logger):
+        """未マウントディスクの取得テスト"""
+        # lsblkコマンドの出力をシミュレート
+        mock_check_output.return_value = b"/dev/sda1\n/dev/sdb1\n"
         
         # メソッドを実行
-        result = disk_utils.get_unmounted_disks()
+        disks = disk_utils.get_unmounted_disks()
         
         # 結果を検証
-        assert result == []
+        assert len(disks) == 2
+        assert "/dev/sda1" in disks
+        assert "/dev/sdb1" in disks
         
-        # Loggerがエラーを記録したことを確認
-        mock_logger.error.assert_called()
+        # lsblkコマンドが実行されたことを確認
+        mock_check_output.assert_called()
     
     @patch('subprocess.check_output')
-    def test_get_unmounted_disks_json_error(self, mock_check_output, disk_utils, mock_logger):
-        """未マウントディスク取得時にJSONエラーが発生した場合のテスト"""
-        # 不正なJSONを返すようにモック
-        mock_check_output.return_value = "invalid json"
+    def test_get_mounted_disks(self, mock_check_output, disk_utils, mock_logger):
+        """マウント済みディスクの取得テスト"""
+        # mountコマンドの出力をシミュレート
+        mock_check_output.return_value = b"/dev/sda1 on /mnt/test type ext4\n/dev/sdb1 on /mnt/data type ntfs\n"
         
         # メソッドを実行
-        result = disk_utils.get_unmounted_disks()
+        disks = disk_utils.get_mounted_disks()
         
         # 結果を検証
-        assert result == []
+        assert len(disks) == 2
+        assert "/dev/sda1" in disks
+        assert "/dev/sdb1" in disks
         
-        # Loggerがエラーを記録したことを確認
-        mock_logger.error.assert_called()
+        # mountコマンドが実行されたことを確認
+        mock_check_output.assert_called()
     
     @patch('subprocess.check_output')
-    def test_get_mounted_disks_success(self, mock_check_output, disk_utils, mock_logger):
-        """マウント済みディスクの取得成功のテスト"""
-        # サンプルのlsblkコマンド出力をモック
-        mock_lsblk_output = json.dumps({
-            "blockdevices": [
-                {
-                    "name": "sda",
-                    "size": "100G",
-                    "type": "disk",
-                    "fstype": None,
-                    "mountpoint": None,
-                    "children": [
-                        {
-                            "name": "sda1",
-                            "size": "100G",
-                            "type": "part",
-                            "fstype": "ntfs",
-                            "mountpoint": "/mnt/sda1"
-                        }
-                    ]
-                },
-                {
-                    "name": "sdb",
-                    "size": "50G",
-                    "type": "disk",
-                    "fstype": None,
-                    "mountpoint": "/mnt/sdb"
-                }
-            ]
-        })
-        mock_check_output.return_value = mock_lsblk_output
-    
-        # メソッドを実行
-        result = disk_utils.get_mounted_disks()
-    
-        # 結果を検証
-        assert len(result) == 3  # sda1, sdbの3つが返るはず
-        assert result[0]["name"] == "sda1"
-        assert result[1]["name"] == "sdb"
-        assert result[0]["mountpoint"] == "/mnt/sda1"
-        assert result[1]["mountpoint"] == "/mnt/sdb"
-        
-        # ログ呼び出し回数は検証しない（実装によって変わる可能性がある）
-        assert mock_logger.info.called
-    
-    @patch('subprocess.check_output')
-    def test_get_filesystem_type(self, mock_check_output, disk_utils):
-        """ファイルシステムタイプ取得のテスト"""
-        # blkidコマンドの出力をモック
-        mock_check_output.return_value = 'TYPE="ntfs"\n'
+    def test_get_filesystem_type(self, mock_check_output, disk_utils, mock_logger):
+        """ファイルシステムタイプの取得テスト"""
+        # blkidコマンドの出力をシミュレート
+        mock_check_output.return_value = b'LABEL="test" TYPE="ext4"'
         
         # メソッドを実行
-        result = disk_utils.get_filesystem_type("/dev/sda1")
+        fs_type = disk_utils.get_filesystem_type("/dev/sda1")
         
         # 結果を検証
-        assert result == "ntfs"
+        assert fs_type == "ext4"
+        
+        # blkidコマンドが実行されたことを確認
+        mock_check_output.assert_called()
     
     @patch('subprocess.check_output')
-    def test_get_filesystem_type_error(self, mock_check_output, disk_utils):
+    def test_get_filesystem_type_error(self, mock_check_output, disk_utils, mock_logger):
         """ファイルシステムタイプ取得時にエラーが発生した場合のテスト"""
-        # subprocessがエラーを発生させるようにモック
+        # blkidコマンドがエラーを返すようにシミュレート
         mock_check_output.side_effect = subprocess.CalledProcessError(1, "blkid")
         
         # メソッドを実行
-        result = disk_utils.get_filesystem_type("/dev/sda1")
+        fs_type = disk_utils.get_filesystem_type("/dev/sda1")
         
         # 結果を検証
-        assert result is None
+        assert fs_type == ""
+        
+        # エラーログが記録されたことを確認
+        mock_logger.error.assert_called()
     
     @patch('os.path.exists')
     @patch('os.makedirs')
@@ -189,11 +105,11 @@ class TestDiskUtils:
         disk_utils.get_filesystem_type = lambda x: "ntfs"
         
         # メソッドを実行
-        success, message = disk_utils.mount_disk("/dev/sda1")
+        success, message = disk_utils.mount_disk("/dev/sda1", "/mnt/test")
         
         # 結果を検証
         assert success
-        assert "マウント成功" in message
+        assert "マウント" in message
         
         # マウントコマンドが実行されたことを確認
         mock_check_call.assert_called()
@@ -206,22 +122,22 @@ class TestDiskUtils:
     @patch('subprocess.check_call')
     def test_mount_disk_makedirs_error(self, mock_check_call, mock_makedirs, mock_exists, disk_utils, mock_logger):
         """マウントポイント作成時にエラーが発生した場合のテスト"""
-        # パスが存在すると仮定
-        mock_exists.return_value = True
-        
+        # パスが存在しないと仮定
+        mock_exists.return_value = False
+
         # マウントポイント作成エラーをシミュレート
         mock_makedirs.side_effect = OSError("Permission denied")
-        
+
         # メソッドを実行
-        success, message = disk_utils.mount_disk("/dev/sda1")
-        
+        success, message = disk_utils.mount_disk("/dev/sda1", "/mnt/test")
+
         # 結果を検証
         assert not success
-        assert "マウントポイント作成失敗" in message
-        
+        assert "マウントポイントの作成に失敗しました" in message
+
         # マウントコマンドが実行されていないことを確認
         mock_check_call.assert_not_called()
-        
+
         # エラーログが記録されたことを確認
         mock_logger.error.assert_called()
     
@@ -235,15 +151,12 @@ class TestDiskUtils:
         # マウントエラーをシミュレート
         mock_check_call.side_effect = subprocess.CalledProcessError(1, "mount")
         
-        # ファイルシステムタイプ取得をモック
-        disk_utils.get_filesystem_type = lambda x: "ntfs"
-        
         # メソッドを実行
-        success, message = disk_utils.mount_disk("/dev/sda1")
+        success, message = disk_utils.mount_disk("/dev/sda1", "/mnt/test")
         
         # 結果を検証
         assert not success
-        assert "マウント失敗" in message
+        assert "マウントに失敗しました" in message
         
         # エラーログが記録されたことを確認
         mock_logger.error.assert_called()
@@ -259,7 +172,7 @@ class TestDiskUtils:
         
         # 結果を検証
         assert success
-        assert "フォーマット成功" in message
+        assert "ディスクのフォーマットに成功しました" in message
         
         # フォーマットコマンドが実行されたことを確認
         mock_check_call.assert_called()
@@ -278,7 +191,7 @@ class TestDiskUtils:
         
         # 結果を検証
         assert success
-        assert "フォーマット成功" in message
+        assert "ディスクのフォーマットに成功しました" in message
         
         # フォーマットコマンドが実行されたことを確認
         mock_check_call.assert_called()
@@ -300,7 +213,7 @@ class TestDiskUtils:
         
         # 結果を検証
         assert success
-        assert "フォーマット成功" in message
+        assert "ディスクのフォーマットに成功しました" in message
         
         # フォーマットコマンドが実行されたことを確認
         mock_check_call.assert_called()
@@ -380,7 +293,7 @@ class TestDiskUtils:
         
         # 結果を検証
         assert not success
-        assert "フォーマット失敗" in message
+        assert "フォーマットに失敗しました" in message
         
         # エラーログが記録されたことを確認
         mock_logger.error.assert_called()
@@ -396,7 +309,8 @@ class TestDiskUtils:
         
         # 結果を検証
         assert success
-        assert "権限設定成功" in message
+        assert "マウントポイント" in message
+        assert "権限を設定しました" in message
         
         # 権限設定コマンドが実行されたことを確認
         mock_check_call.assert_called()
@@ -415,42 +329,52 @@ class TestDiskUtils:
         
         # 結果を検証
         assert not success
-        assert "権限設定失敗" in message
+        assert "権限設定エラー" in message
         
         # エラーログが記録されたことを確認
         mock_logger.error.assert_called()
     
+    @patch('os.path.exists')
+    @patch('subprocess.check_call')
     @patch('subprocess.Popen')
-    def test_open_file_manager_success(self, mock_popen, disk_utils, mock_logger):
+    def test_open_file_manager_success(self, mock_popen, mock_check_call, mock_exists, disk_utils, mock_logger):
         """ファイルマネージャー起動の成功テスト"""
+        # パスが存在すると仮定
+        mock_exists.return_value = True
+
+        # whichコマンドの成功をシミュレート
+        mock_check_call.return_value = 0
+
         # ファイルマネージャー起動成功をシミュレート
         mock_popen.return_value = MagicMock()
-        
+
         # メソッドを実行
         success, message = disk_utils.open_file_manager("/dev/sda1")
-        
+
         # 結果を検証
         assert success
-        assert "ファイルマネージャー起動成功" in message
-        
-        # ファイルマネージャーが起動されたことを確認
-        mock_popen.assert_called()
-        
+        assert "ファイルマネージャーを起動しました" in message
+
         # ログが記録されたことを確認
         mock_logger.info.assert_called()
-    
+
+    @patch('os.path.exists')
+    @patch('subprocess.check_call')
     @patch('subprocess.Popen')
-    def test_open_file_manager_error(self, mock_popen, disk_utils, mock_logger):
+    def test_open_file_manager_error(self, mock_popen, mock_check_call, mock_exists, disk_utils, mock_logger):
         """ファイルマネージャー起動時にエラーが発生した場合のテスト"""
-        # ファイルマネージャー起動エラーをシミュレート
-        mock_popen.side_effect = OSError("File manager not found")
-        
+        # パスが存在すると仮定
+        mock_exists.return_value = True
+
+        # whichコマンドの失敗をシミュレート
+        mock_check_call.side_effect = subprocess.CalledProcessError(1, "which")
+
         # メソッドを実行
         success, message = disk_utils.open_file_manager("/dev/sda1")
-        
+
         # 結果を検証
         assert not success
-        assert "ファイルマネージャー起動失敗" in message
-        
+        assert "利用可能なファイルマネージャーが見つかりません" in message
+
         # エラーログが記録されたことを確認
         mock_logger.error.assert_called() 

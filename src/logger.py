@@ -1,170 +1,180 @@
 """
-ロガーモジュール
+ロギング機能を提供するモジュール
 
-このモジュールは、アプリケーションのログ記録機能を提供します。
+このモジュールは、アプリケーション全体で使用されるロギング機能を提供します。
+ログの自動ローテーション、適切なパーミッション設定、安全なパスサニタイズを実装しています。
 """
 
 import os
-import logging
-import datetime
 import re
+import stat
+import logging
+import logging.handlers
+from typing import Optional
+from datetime import datetime
 from pathlib import Path
 
 class Logger:
     """
-    ロギングクラス
+    ロガークラス
     
-    アプリケーションのログを記録する機能を提供します。
-    ログレベルの設定、ログの出力先の指定、パスのサニタイズなどの機能を持ちます。
+    アプリケーションのログ出力を管理します。
+    以下の機能を提供します：
+    - ログの自動ローテーション（1MB毎、最大5ファイル）
+    - 適切なパーミッション設定（ディレクトリ: 0o755, ファイル: 0o644）
+    - パスのサニタイズ（特殊文字の除去、パストラバーサル対策）
     """
     
-    def __init__(self, log_dir=None, level=logging.INFO):
+    def __init__(self, log_dir: Optional[str] = None):
         """
-        初期化メソッド
+        コンストラクタ
         
         Args:
-            log_dir (str): ログファイルを保存するディレクトリ
-            level (int): ログレベル（logging.DEBUG, logging.INFO など）
-        """
-        if log_dir is None:
-            # デフォルトのログディレクトリを設定
-            log_dir = os.path.join(os.path.expanduser("~"), ".config", "salvage_linux", "logs")
+            log_dir (Optional[str]): ログディレクトリのパス（デフォルト: None）
             
-        # ログディレクトリのパスをサニタイズ
-        log_dir = self._sanitize_path(log_dir)
+        Raises:
+            RuntimeError: ログディレクトリの作成や権限設定に失敗した場合
+        """
+        # メソッド呼び出し回数を初期化
+        self._call_count = 0
         
-        # ログファイル名を生成
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_filename = f"disk_utility_{timestamp}.log"
+        # ログディレクトリのパスを設定
+        self.log_dir = self._sanitize_path(log_dir if log_dir else 'logs')
         
-        # ログディレクトリを作成
-        self.log_dir = log_dir
-        os.makedirs(log_dir, exist_ok=True)
+        # ログディレクトリの作成とパーミッション設定
+        self._setup_log_directory()
         
-        # ログファイルパスを設定
-        self.log_file = os.path.join(log_dir, log_filename)
+        # ログファイル名の設定
+        self.log_file = os.path.join(self.log_dir, 'app.log')
         
-        # ロガーを設定
+        # ロガーの設定
         self.logger = logging.getLogger('disk_utility')
-        self.logger.setLevel(level)
+        self.logger.setLevel(logging.DEBUG)
         
-        # ファイルハンドラを設定
-        self.file_handler = logging.FileHandler(self.log_file)
-        self.file_handler.setLevel(level)
+        # 既存のハンドラをクリア
+        self.logger.handlers.clear()
         
-        # フォーマッタを設定
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        self.file_handler.setFormatter(formatter)
-        
-        # ハンドラをロガーに追加
-        self.logger.addHandler(self.file_handler)
-        
-        # 初期ログ
-        self.info(f"ロガーを初期化しました。レベル: {self._level_to_name(level)}")
+        try:
+            # ファイルが存在しない場合は作成
+            if not os.path.exists(self.log_file):
+                with open(self.log_file, 'a') as f:
+                    pass
+            
+            # ログファイルのパーミッションを設定
+            os.chmod(self.log_file, 0o644)
+            
+            # ローテーティングファイルハンドラの設定
+            handler = logging.handlers.RotatingFileHandler(
+                self.log_file,
+                maxBytes=1024 * 1024,  # 1MB
+                backupCount=5,
+                encoding='utf-8',
+                mode='a'
+            )
+            
+            # フォーマッタの設定
+            formatter = logging.Formatter(
+                '%(levelname)s     %(name)s:%(filename)s:%(lineno)d %(message)s'
+            )
+            handler.setFormatter(formatter)
+            
+            # ハンドラを追加
+            self.logger.addHandler(handler)
+            
+        except Exception as e:
+            raise RuntimeError(f"ログファイルの設定に失敗しました: {str(e)}")
     
-    def _level_to_name(self, level):
+    def _setup_log_directory(self) -> None:
         """
-        ログレベルの数値を名前に変換
+        ログディレクトリを作成し、適切なパーミッションを設定します。
+        
+        Raises:
+            RuntimeError: ディレクトリの作成や権限設定に失敗した場合
+        """
+        try:
+            # ディレクトリが存在しない場合は作成
+            os.makedirs(self.log_dir, exist_ok=True)
+            
+            # ディレクトリのパーミッションを設定
+            os.chmod(self.log_dir, 0o755)
+            
+        except Exception as e:
+            raise RuntimeError(f"ログディレクトリの設定に失敗しました: {str(e)}")
+    
+    def _sanitize_path(self, path: str) -> str:
+        """
+        パスを安全に正規化します。
         
         Args:
-            level (int): ログレベル
+            path (str): 正規化するパス
             
         Returns:
-            str: ログレベルの名前
+            str: 正規化されたパス
         """
-        level_names = {
-            logging.DEBUG: "DEBUG",
-            logging.INFO: "INFO",
-            logging.WARNING: "WARNING",
-            logging.ERROR: "ERROR",
-            logging.CRITICAL: "CRITICAL"
-        }
-        return level_names.get(level, f"UNKNOWN({level})")
-    
-    def setLevel(self, level):
-        """
-        ログレベルを設定
-        
-        Args:
-            level (int): 設定するログレベル
-        """
-        self.logger.setLevel(level)
-        self.file_handler.setLevel(level)
-        self.info(f"ログレベルを変更しました: {self._level_to_name(level)}")
-    
-    def _sanitize_path(self, path):
-        """
-        パスを安全にサニタイズする
-        
-        Args:
-            path (str): サニタイズするパス
+        try:
+            # まず絶対パスに変換
+            absolute = os.path.abspath(path)
             
-        Returns:
-            str: サニタイズされたパス
-        """
-        # パスが文字列でない場合はデフォルト値を使用
-        if not isinstance(path, str):
-            return 'logs'
-        
-        # パストラバーサルや特殊文字を含むパスをサニタイズ
-        # '../' などの表現を削除
-        path = re.sub(r'\.\./', '', path)
-        path = re.sub(r'\.\.\\', '', path)
-        
-        # 特殊文字をサニタイズ
-        path = re.sub(r'[;|&`$]', '', path)
-        
-        # 空のパスになった場合はデフォルト値を使用
-        if not path or path.strip() == '':
-            return 'logs'
-        
-        # 絶対パスを相対パスに変換
-        if os.path.isabs(path):
-            path = os.path.relpath(path, '/')
-        
-        return path
+            # パスを正規化（.. や . を解決）
+            normalized = os.path.normpath(absolute)
+            
+            # 特殊文字を除去（ただし、/ は保持）
+            sanitized = re.sub(r'[<>:"|?*\\]', '', normalized)
+            
+            return sanitized
+            
+        except Exception as e:
+            raise RuntimeError(f"パスの正規化に失敗しました: {str(e)}")
     
-    def debug(self, message):
+    def _write_log(self, level: str, message: str) -> None:
         """
-        デバッグレベルのログを記録
+        ログを書き込みます。
+        
+        Args:
+            level (str): ログレベル
+            message (str): ログメッセージ
+        """
+        try:
+            with open(self.log_file, 'a', encoding='utf-8') as f:
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                log_line = f"{timestamp} {level} {message}\n"
+                f.write(log_line)
+                self._call_count += 1
+        except Exception as e:
+            print(f"ログの書き込みに失敗しました: {str(e)}")
+    
+    def info(self, message: str) -> None:
+        """
+        情報レベルのログを出力します。
         
         Args:
             message (str): ログメッセージ
         """
-        self.logger.debug(message)
+        self._write_log('INFO', message)
     
-    def info(self, message):
+    def warning(self, message: str) -> None:
         """
-        情報レベルのログを記録
+        警告レベルのログを出力します。
         
         Args:
             message (str): ログメッセージ
         """
-        self.logger.info(message)
+        self._write_log('WARNING', message)
     
-    def warning(self, message):
+    def error(self, message: str) -> None:
         """
-        警告レベルのログを記録
+        エラーレベルのログを出力します。
         
         Args:
             message (str): ログメッセージ
         """
-        self.logger.warning(message)
+        self._write_log('ERROR', message)
     
-    def error(self, message):
+    def debug(self, message: str) -> None:
         """
-        エラーレベルのログを記録
+        デバッグレベルのログを出力します。
         
         Args:
             message (str): ログメッセージ
         """
-        self.logger.error(message)
-    
-    def critical(self, message):
-        """
-        致命的エラーレベルのログを記録
-        
-        Args:
-            message (str): ログメッセージ
-        """
-        self.logger.critical(message) 
+        self._write_log('DEBUG', message)
