@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - 'v*'  # vから始まるタグ (例: v0.1.0)
+    branches:
+      - '**'  # すべてのブランチへのプッシュ
   pull_request:
     branches: [ main, master ]
 
@@ -44,6 +46,7 @@ jobs:
 
   build:
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v')  # タグがvで始まる場合のみビルドを実行
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
