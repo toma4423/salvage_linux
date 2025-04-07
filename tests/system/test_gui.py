@@ -11,6 +11,8 @@ from unittest.mock import patch, MagicMock, ANY
 from src.main import DiskUtilityApp
 from src.disk_utils import DiskUtils
 from src.logger import Logger
+from PyQt5.QtWidgets import QApplication
+import sys
 
 @pytest.fixture
 def temp_dir():
@@ -37,7 +39,14 @@ def mocked_tk():
     }
 
 @pytest.fixture
-def gui_app():
+def qt_app():
+    """QApplicationインスタンスを提供するフィクスチャ"""
+    app = QApplication(sys.argv)
+    yield app
+    app.quit()
+
+@pytest.fixture
+def gui_app(qt_app):
     """モック化されたGUIインスタンスを提供するフィクスチャ"""
     # ルートウィンドウのモック
     root = MagicMock()
