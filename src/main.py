@@ -7,27 +7,20 @@ USBブートLinux GUIディスクユーティリティ
 import os
 import sys
 import threading
-import logging
 import argparse
-import subprocess
-import json
-import re
-from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QLabel, QPushButton, QListWidget, QListWidgetItem, QSplitter,
-    QFrame, QGroupBox, QMenuBar, QMenu, QAction, QMessageBox,
-    QStatusBar, QScrollArea, QTextEdit, QRadioButton, QButtonGroup,
-    QDialog, QFileDialog, QTabWidget, QGridLayout, QFormLayout,
-    QLineEdit, QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox,
-    QLabel, QToolButton, QToolBar, QStyle, QStyleFactory
+    QGroupBox, QMenu, QAction, QMessageBox,
+    QTextEdit, QRadioButton, QButtonGroup,
+    QDialog
 )
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, QThread, QTimer
-from PyQt5.QtGui import QIcon, QFont, QTextCursor, QColor, QPalette
+from PyQt5.QtCore import Qt
+from typing import List
 
 # インポート文をパッケージ相対インポートに修正
 from src.logger import Logger
-from src.disk_utils import DiskUtils
+from src.disk_utils import DiskUtils, DiskInfo
 from src.version import get_version_info, APP_NAME, __version__
 from src.config_manager import ConfigManager
 from src.settings import SettingsDialog
@@ -82,8 +75,8 @@ class DiskUtilityApp(QMainWindow):
         self.selected_mounted_disk = None
         
         # ディスクリストの初期化
-        self.unmounted_disks = []
-        self.mounted_disks = []
+        self.unmounted_disks: List[DiskInfo] = []
+        self.mounted_disks: List[DiskInfo] = []
         
         # メニューバーの作成
         self._create_menu()
@@ -349,12 +342,14 @@ class DiskUtilityApp(QMainWindow):
             for device in disks_data.get("blockdevices", []):
                 # ディスク自体の処理
                 if device.get("mountpoint") is None and device.get("type") == "disk":
-                    disk_info = {
+                    disk_info: DiskInfo = {
                         "name": device.get("name"),
                         "path": f"/dev/{device.get('name')}",
+                        "device": f"/dev/{device.get('name')}",  # deviceフィールドを追加
                         "size": device.get("size"),
                         "type": device.get("type"),
-                        "fstype": device.get("fstype", "")
+                        "fstype": device.get("fstype", ""),
+                        "mountpoint": None
                     }
                     self.unmounted_disks.append(disk_info)
                     self._add_disk_to_list(disk_info, self.unmounted_disk_listbox)
@@ -362,12 +357,14 @@ class DiskUtilityApp(QMainWindow):
                 # パーティションの処理
                 for partition in device.get("children", []):
                     if partition.get("mountpoint") is None and partition.get("type") == "part":
-                        partition_info = {
+                        partition_info: DiskInfo = {
                             "name": partition.get("name"),
                             "path": f"/dev/{partition.get('name')}",
+                            "device": f"/dev/{partition.get('name')}",  # deviceフィールドを追加
                             "size": partition.get("size"),
                             "type": partition.get("type"),
-                            "fstype": partition.get("fstype", "")
+                            "fstype": partition.get("fstype", ""),
+                            "mountpoint": None
                         }
                         self.unmounted_disks.append(partition_info)
                         self._add_disk_to_list(partition_info, self.unmounted_disk_listbox)
@@ -378,12 +375,15 @@ class DiskUtilityApp(QMainWindow):
                 self.mounted_disk_listbox.clear()
                 self.mounted_disks = []
                 for disk in mounted_disks:
-                    disk_info = {
-                        "name": os.path.basename(disk),
-                        "path": disk,
-                        "mountpoint": disk,
-                        "type": "disk",
-                        "fstype": self.disk_utils.get_filesystem_type(disk)
+                    # マウント済みディスクの情報を統一された形式に変換
+                    disk_info: DiskInfo = {
+                        "name": disk.get("name", os.path.basename(disk.get("path", ""))),
+                        "path": disk.get("path", ""),
+                        "device": disk.get("path", ""),  # deviceフィールドを追加
+                        "size": disk.get("size", "Unknown"),
+                        "type": disk.get("type", "disk"),
+                        "mountpoint": disk.get("mountpoint", ""),
+                        "fstype": disk.get("fstype", "")
                     }
                     self.mounted_disks.append(disk_info)
                     self._add_disk_to_list(disk_info, self.mounted_disk_listbox)
@@ -657,17 +657,14 @@ class DiskUtilityApp(QMainWindow):
                 QMessageBox.warning(self, "警告", "ディスクが選択されていません。")
                 return
             
-            selected_item = current_item.text()
-            self.logger.info(f"プロパティ表示: {selected_item}")
+            # 選択されたインデックスを取得
+            index = self.unmounted_disk_listbox.row(current_item)
+            disk = self.unmounted_disks[index]
             
-            # 選択されたディスクのデバイスパスを取得
-            disk_info = self.disk_utils.find_disk_by_display_name(selected_item, unmounted_only=True)
-            if not disk_info:
-                self.logger.error(f"ディスク情報が見つかりません: {selected_item}")
-                QMessageBox.critical(self, "エラー", f"ディスク情報が見つかりません: {selected_item}")
-                return
+            self.logger.info(f"プロパティ表示: {disk['name']}")
             
-            device_path = disk_info.get("device")
+            # デバイスパスを取得
+            device_path = disk.get("device") or disk.get("path")
             if not device_path:
                 self.logger.error("デバイスパスが見つかりません")
                 QMessageBox.critical(self, "エラー", "デバイスパスが見つかりません。")
@@ -691,7 +688,6 @@ class DiskUtilityApp(QMainWindow):
         """
         バージョン情報を表示
         """
-        version_info = get_version_info()
         QMessageBox.information(
             self,
             "バージョン情報",

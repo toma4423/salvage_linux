@@ -1,5 +1,6 @@
 """
-DiskUtilsの統合テスト
+開発環境用のDiskUtils統合テスト
+macOS環境で実行可能なテストのみを含みます。
 """
 
 import pytest
@@ -19,9 +20,9 @@ def disk_utils(logger):
     return DiskUtils(logger)
 
 @pytest.mark.integration
-class TestDiskUtilsWithLogger:
-    """DiskUtilsの統合テストクラス"""
-
+class TestDevDiskUtilsWithLogger:
+    """開発環境用のDiskUtils統合テストクラス"""
+    
     @patch('subprocess.check_output')
     def test_get_filesystem_type_logging(self, mock_check_output, disk_utils, logger):
         """ファイルシステムタイプ取得のログ記録を確認"""
@@ -58,20 +59,4 @@ class TestDiskUtilsWithLogger:
         # エラーケース
         mock_check_call.side_effect = subprocess.CalledProcessError(1, "which")
         disk_utils.check_refs_tools_available()
-        assert any("ReFSツールが利用できません" in msg for msg in logger.messages)
-
-    @patch('subprocess.Popen')
-    def test_open_file_manager_logging(self, mock_popen, disk_utils, logger):
-        """ファイルマネージャー起動のログ記録を確認"""
-        # 成功ケース
-        mock_process = MagicMock()
-        mock_process.poll.return_value = None
-        mock_popen.return_value = mock_process
-        
-        disk_utils.open_file_manager("/mnt/test")
-        assert any("ファイルマネージャーを起動しました" in msg for msg in logger.messages)
-        
-        # エラーケース
-        mock_popen.side_effect = OSError("Command not found")
-        disk_utils.open_file_manager("/mnt/test")
-        assert any("ファイルマネージャーの起動に失敗しました" in msg for msg in logger.messages) 
+        assert any("ReFSツールが利用できません" in msg for msg in logger.messages) 

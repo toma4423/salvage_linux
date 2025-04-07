@@ -1,5 +1,6 @@
 """
-セキュリティテスト
+開発環境用のセキュリティテスト
+macOS環境で実行可能なテストのみを含みます。
 """
 
 import pytest
@@ -32,8 +33,8 @@ def logger_and_disk_utils(temp_dir):
     return logger, disk_utils
 
 @pytest.mark.system
-class TestSecurity:
-    """セキュリティテストクラス"""
+class TestDevSecurity:
+    """開発環境用のセキュリティテストクラス"""
 
     def test_format_disk_invalid_path(self, logger_and_disk_utils):
         """不正なパスでのフォーマットが拒否されることを確認"""
@@ -93,8 +94,8 @@ class TestSecurity:
         assert "不正なデバイスパスです" in str(e.value)
 
 @pytest.mark.system
-class TestTypeHints:
-    """型ヒントのテスト"""
+class TestDevTypeHints:
+    """開発環境用の型ヒントのテスト"""
     
     @patch('subprocess.check_output')
     @patch('json.loads')
@@ -202,55 +203,4 @@ class TestTypeHints:
         if "partuuid" in disk_info:
             assert isinstance(disk_info["partuuid"], str) or disk_info["partuuid"] is None, "partuuidフィールドが文字列型またはNoneではありません"
         if "partlabel" in disk_info:
-            assert isinstance(disk_info["partlabel"], str) or disk_info["partlabel"] is None, "partlabelフィールドが文字列型またはNoneではありません"
-
-class TestSecurity(unittest.TestCase):
-    """セキュリティテストクラス"""
-    
-    def setUp(self):
-        """テストの前準備"""
-        self.logger = Logger()
-        self.disk_utils = DiskUtils(self.logger)
-
-    def test_format_disk_invalid_path(self):
-        """不正なパスでのフォーマットを試みた場合のテスト"""
-        # コマンドインジェクションの試行
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.format_disk("/dev/sda1; rm -rf /", "ntfs")
-        self.assertIn("不正なデバイスパス", str(context.exception))
-
-        # パストラバーサルの試行
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.format_disk("/dev/../etc/passwd", "ntfs")
-        self.assertIn("不正なデバイスパス", str(context.exception))
-
-        # 不正なデバイスパス
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.format_disk("/etc/passwd", "ntfs")
-        self.assertIn("不正なデバイスパス", str(context.exception))
-
-    def test_format_disk_invalid_fs_type(self):
-        """不正なファイルシステムタイプでのフォーマットを試みた場合のテスト"""
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.format_disk("/dev/sda1", "invalid_fs")
-        self.assertIn("サポートされていないファイルシステムタイプ", str(context.exception))
-
-    def test_get_filesystem_type_invalid_path(self):
-        """不正なパスでのファイルシステムタイプ取得を試みた場合のテスト"""
-        # コマンドインジェクションの試行
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.get_filesystem_type("/dev/sda1; rm -rf /")
-        self.assertIn("不正なデバイスパス", str(context.exception))
-
-        # パストラバーサルの試行
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.get_filesystem_type("/dev/../etc/passwd")
-        self.assertIn("不正なデバイスパス", str(context.exception))
-
-        # 不正なデバイスパス
-        with self.assertRaises(RuntimeError) as context:
-            self.disk_utils.get_filesystem_type("/etc/passwd")
-        self.assertIn("不正なデバイスパス", str(context.exception))
-
-if __name__ == '__main__':
-    unittest.main() 
+            assert isinstance(disk_info["partlabel"], str) or disk_info["partlabel"] is None, "partlabelフィールドが文字列型またはNoneではありません" 
