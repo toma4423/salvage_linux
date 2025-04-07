@@ -22,6 +22,7 @@ def temp_dir():
 def logger_and_disk_utils(temp_dir):
     """実際のロガーとディスクユーティリティを提供するフィクスチャ"""
     log_dir = os.path.join(temp_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)  # 確実にログディレクトリを作成
     logger = Logger(log_dir=log_dir)
     disk_utils = DiskUtils(logger)
     

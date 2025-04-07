@@ -23,6 +23,7 @@ def temp_dir():
 def logger_and_disk_utils(temp_dir):
     """実際のロガーとディスクユーティリティを提供するフィクスチャ"""
     log_dir = os.path.join(temp_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)  # 確実にログディレクトリを作成
     logger = Logger(log_dir=log_dir)
     disk_utils = DiskUtils(logger)
     
@@ -101,49 +102,55 @@ class TestPerformance:
         success, _ = disk_utils.format_disk("/dev/sda1", "exfat")
         exfat_format_time = time.time() - start_time
         
+        # ReFSフォーマットの時間を計測
+        start_time = time.time()
+        success, _ = disk_utils.format_disk("/dev/sda1", "refs")
+        refs_format_time = time.time() - start_time
+        
         # 結果を検証
         print(f"\nNTFSフォーマット時間: {ntfs_format_time:.4f}秒")
         print(f"exFATフォーマット時間: {exfat_format_time:.4f}秒")
+        print(f"ReFSフォーマット時間: {refs_format_time:.4f}秒")
         
         # 許容時間内で処理が完了することを確認
         assert ntfs_format_time < 1.0  # 1秒以内
         assert exfat_format_time < 1.0  # 1秒以内
+        assert refs_format_time < 1.0  # 1秒以内
     
     @patch('subprocess.check_call')
     def test_set_permissions_performance(self, mock_check_call, logger_and_disk_utils):
-        """権限付与のパフォーマンステスト"""
+        """権限設定のパフォーマンステスト"""
         logger, disk_utils = logger_and_disk_utils
         
-        # 権限付与コマンドの実行をシミュレート（実際には実行しない）
-        # 大きなディスクの場合は時間がかかると仮定
-        mock_check_call.side_effect = lambda cmd: time.sleep(1.0)  # 1秒かかると仮定
+        # 権限設定コマンドの実行をシミュレート（実際には実行しない）
+        mock_check_call.side_effect = lambda cmd: time.sleep(0.5)  # 0.5秒かかると仮定
         
-        # 権限付与の時間を計測
+        # 権限設定の時間を計測
         start_time = time.time()
-        success, _ = disk_utils.set_permissions("/mnt/sda1")
-        permission_time = time.time() - start_time
+        success, _ = disk_utils.set_permissions("/dev/sda1")
+        permissions_time = time.time() - start_time
         
         # 結果を検証
-        print(f"\n権限付与時間: {permission_time:.4f}秒")
+        print(f"\n権限設定時間: {permissions_time:.4f}秒")
         
         # 許容時間内で処理が完了することを確認
-        assert permission_time < 2.0  # 2秒以内
+        assert permissions_time < 1.0  # 1秒以内
     
     @patch('subprocess.Popen')
     def test_open_file_manager_performance(self, mock_popen, logger_and_disk_utils):
         """ファイルマネージャー起動のパフォーマンステスト"""
         logger, disk_utils = logger_and_disk_utils
         
-        # ファイルマネージャー起動をシミュレート
-        mock_popen.return_value = MagicMock()
+        # ファイルマネージャー起動をシミュレート（実際には起動しない）
+        mock_popen.side_effect = lambda cmd: time.sleep(0.5)  # 0.5秒かかると仮定
         
         # ファイルマネージャー起動の時間を計測
         start_time = time.time()
-        success, _ = disk_utils.open_file_manager("/mnt/sda1")
-        open_time = time.time() - start_time
+        success, _ = disk_utils.open_file_manager("/dev/sda1")
+        file_manager_time = time.time() - start_time
         
         # 結果を検証
-        print(f"\nファイルマネージャー起動時間: {open_time:.4f}秒")
+        print(f"\nファイルマネージャー起動時間: {file_manager_time:.4f}秒")
         
         # 許容時間内で処理が完了することを確認
-        assert open_time < 0.5  # 0.5秒以内 
+        assert file_manager_time < 1.0  # 1秒以内 

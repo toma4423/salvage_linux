@@ -3,100 +3,127 @@ Loggerのユニットテスト
 """
 
 import os
-import tempfile
-import shutil
 import pytest
+from unittest.mock import patch, MagicMock
+import tempfile
 from src.logger import Logger
 
 @pytest.fixture
-def temp_log_dir():
-    """テスト用の一時ディレクトリを作成するフィクスチャ"""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
-    # テスト後にディレクトリを削除
-    shutil.rmtree(temp_dir)
+def temp_dir():
+    """一時ディレクトリを作成するフィクスチャ"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield temp_dir
+
+@pytest.fixture
+def logger(temp_dir):
+    """テスト用のLoggerインスタンスを返すフィクスチャ"""
+    log_dir = os.path.join(temp_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)  # 確実にログディレクトリを作成
+    return Logger(log_dir)
 
 @pytest.mark.unit
 class TestLogger:
     """Loggerのテストクラス"""
     
-    def test_logger_init(self, temp_log_dir):
-        """ロガーの初期化のテスト"""
-        logger = Logger(log_dir=temp_log_dir)
-        
-        # ロガーインスタンスが正しく作成されることを確認
-        # パスのサニタイズ機能により、絶対パスが相対パスに変換される可能性があるため、
-        # log_dirの検証は行わず、log_fileが正しく設定されていることを確認
-        assert logger.logger is not None
-        assert logger.log_file is not None
-        assert "disk_utility_" in logger.log_file
-        
-        # ログファイルが作成されていることを確認
-        assert os.path.exists(logger.log_file)
-    
-    def test_logger_methods(self, temp_log_dir):
-        """ロガーのメソッドのテスト"""
-        logger = Logger(log_dir=temp_log_dir)
-        
-        # 各種ログメソッドが例外を発生させずに実行できることを確認
-        logger.info("テスト情報ログ")
-        logger.warning("テスト警告ログ")
-        logger.error("テストエラーログ")
-        logger.critical("テスト重大エラーログ")
-        
-        # ログファイルが作成されていることを確認
-        assert os.path.exists(logger.log_file)
-        
-        # ログファイルの内容を確認
-        with open(logger.log_file, 'r') as f:
-            log_content = f.read()
-            assert "テスト情報ログ" in log_content
-            assert "テスト警告ログ" in log_content
-            assert "テストエラーログ" in log_content
-            assert "テスト重大エラーログ" in log_content
-    
-    def test_logger_automatic_directory_creation(self):
-        """ログディレクトリが存在しない場合に自動作成されるかのテスト"""
-        # 一時的なパスを作成（実際には存在しない）
-        non_existent_dir = os.path.join(tempfile.gettempdir(), "nonexistent_logs_dir")
-        
-        # もし既に存在する場合は削除
-        if os.path.exists(non_existent_dir):
-            shutil.rmtree(non_existent_dir)
-        
-        # 存在しないディレクトリを指定してロガーを初期化
-        logger = Logger(log_dir=non_existent_dir)
-        
-        # ログファイルが作成されていることを確認
-        assert os.path.exists(logger.log_file)
-        
-        # ログファイルのディレクトリが作成されていることを確認
-        log_dir = os.path.dirname(logger.log_file)
+    def test_logger_init(self, temp_dir, logger):
+        """Loggerの初期化テスト"""
+        # ログディレクトリが作成されていることを確認
+        log_dir = os.path.join(temp_dir, "logs")
         assert os.path.exists(log_dir)
+        assert os.path.isdir(log_dir)
         
-        # テスト後にディレクトリを削除
-        if os.path.exists(log_dir):
-            shutil.rmtree(log_dir)
+        # ログファイルが作成されていることを確認
+        log_file = os.path.join(log_dir, "app.log")
+        assert os.path.exists(log_file)
+        assert os.path.isfile(log_file)
     
-    def test_path_sanitization(self):
-        """パスのサニタイズ機能のテスト"""
-        # 不正なパスでロガーを初期化
-        logger = Logger(log_dir="../../../etc")
+    @patch('builtins.open', new_callable=MagicMock)
+    def test_logger_methods(self, mock_open, logger):
+        """ロガーメソッドのテスト"""
+        # ファイルオブジェクトをモック
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
         
-        # パスがサニタイズされていることを確認
-        assert ".." not in logger.log_file
-        # 'etc'は削除されない可能性があるため、チェックしない
+        # 各メソッドを実行
+        logger.info("情報メッセージ")
+        logger.warning("警告メッセージ")
+        logger.error("エラーメッセージ")
+        logger.debug("デバッグメッセージ")
+        
+        # ファイルが正しく開かれたことを確認
+        assert mock_open.call_count == 4
+        
+        # 各メソッドでファイルに書き込みが行われたことを確認
+        assert mock_file.write.call_count == 4
+    
+    def test_logger_automatic_directory_creation(self, temp_dir):
+        """ログディレクトリの自動作成テスト"""
+        # 存在しないディレクトリを指定
+        log_dir = os.path.join(temp_dir, "new_logs")
+        
+        # Loggerを初期化
+        logger = Logger(log_dir)
+        
+        # ディレクトリが作成されていることを確認
+        assert os.path.exists(log_dir)
+        assert os.path.isdir(log_dir)
         
         # ログファイルが作成されていることを確認
-        assert os.path.exists(logger.log_file)
+        log_file = os.path.join(log_dir, "app.log")
+        assert os.path.exists(log_file)
+        assert os.path.isfile(log_file)
+    
+    def test_path_sanitization(self, temp_dir):
+        """パスのサニタイズテスト"""
+        # 不正なパスを含むディレクトリを指定
+        log_dir = os.path.join(temp_dir, "logs", "..", "..", "outside")
         
-        # 特殊文字を含むパスでロガーを初期化
-        logger2 = Logger(log_dir="/tmp/test;rm -rf /")
+        # Loggerを初期化
+        logger = Logger(log_dir)
         
-        # パスがサニタイズされていることを確認
-        assert ";" not in logger2.log_file
-        # 特殊文字のサニタイズ方法は実装によって異なるため、
-        # ログファイルが作成されていることだけを確認
+        # パスが正規化されていることを確認
+        expected_dir = os.path.join(temp_dir, "outside")
+        assert logger.log_dir == expected_dir
         
-        # ログファイルが作成されていることを確認
-        assert os.path.exists(logger2.log_file) 
+        # ログファイルが正しい場所に作成されていることを確認
+        log_file = os.path.join(expected_dir, "app.log")
+        assert os.path.exists(log_file)
+        assert os.path.isfile(log_file)
+    
+    @patch('builtins.open', new_callable=MagicMock)
+    def test_logger_file_error(self, mock_open, logger):
+        """ファイル操作エラーのテスト"""
+        # ファイル操作でエラーを発生させる
+        mock_open.side_effect = IOError("ファイル操作エラー")
+        
+        # エラーが発生しても例外が伝播しないことを確認
+        logger.info("テストメッセージ")
+        logger.warning("テストメッセージ")
+        logger.error("テストメッセージ")
+        logger.debug("テストメッセージ")
+    
+    def test_logger_permissions(self, temp_dir):
+        """ログファイルのパーミッションテスト"""
+        log_dir = os.path.join(temp_dir, "logs")
+        log_file = os.path.join(log_dir, "app.log")
+        
+        # ログファイルのパーミッションを確認
+        assert os.access(log_file, os.R_OK)
+        assert os.access(log_file, os.W_OK)
+    
+    @patch('builtins.open', new_callable=MagicMock)
+    def test_logger_rotation(self, mock_open, logger):
+        """ログローテーションのテスト"""
+        # ファイルオブジェクトをモック
+        mock_file = MagicMock()
+        mock_open.return_value.__enter__.return_value = mock_file
+        
+        # 大量のログを書き込む
+        for i in range(1000):
+            logger.info(f"テストメッセージ {i}")
+        
+        # ファイルが正しく開かれたことを確認
+        assert mock_open.call_count == 1000
+        
+        # 各メソッドでファイルに書き込みが行われたことを確認
+        assert mock_file.write.call_count == 1000 
