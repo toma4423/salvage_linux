@@ -61,35 +61,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: disk_utility
-          path: dist/disk_utility
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')  # タグがvで始まる場合のみビルドを実行
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: disk_utility
-          path: dist
-      
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/disk_utility
-          name: Release ${{ github.ref_name }}
-          body: |
-            ## 機能と改善点
-            
-            - ReFSファイルシステムのサポートを追加
-            - ディスク操作の安全性を向上
-            - エラーメッセージの改善
-            - テストカバレッジの向上
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          path: dist/disk_utility 
