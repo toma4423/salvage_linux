@@ -183,18 +183,20 @@ class DiskUtils:
         if not path:
             return False
         
+        # パスに特殊文字が含まれていないことを確認
+        if re.search(r'[;&|`$]', path):
+            return False
+        
+        # パスに相対パスが含まれていないことを確認
+        if ".." in path:
+            return False
+        
         # デバイスパスの場合は/dev/で始まることを確認
         if path.startswith("/dev/"):
-            # パスに特殊文字が含まれていないことを確認
-            if re.search(r'[;&|`$]', path):
-                return False
             return True
         
         # マウントポイントの場合は絶対パスであることを確認
         if path.startswith("/"):
-            # パスに特殊文字が含まれていないことを確認
-            if re.search(r'[;&|`$]', path):
-                return False
             return True
         
         return False
@@ -209,6 +211,8 @@ class DiskUtils:
         try:
             # mkfs.refsコマンドが存在するかチェック
             subprocess.check_call(["which", "mkfs.refs"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # refsutilコマンドが存在するかチェック
+            subprocess.check_call(["which", "refsutil"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -270,7 +274,7 @@ class DiskUtils:
                 except OSError as e:
                     error_msg = f"マウントポイントの作成に失敗しました: {str(e)}"
                     self.logger.error(error_msg)
-                    return False, error_msg, ""
+                    return False, "無効なマウントポイントが指定されました。", ""
             
             # ファイルシステムタイプを取得
             fs_type = self.get_filesystem_type(device_path)
