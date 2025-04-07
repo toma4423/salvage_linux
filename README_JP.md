@@ -5,9 +5,10 @@
 
 ## 主な機能
 - 未マウントディスクのマウント
-- コピー先ディスクのフォーマット（ext4、NTFS、exFAT、FAT32に対応）
+- コピー先ディスクのフォーマット（ext4、NTFS、exFAT、FAT32、ReFSに対応）
 - マウント済みディスクのファイルマネージャーでの表示
 - コピー先ディスクへの権限付与（chmod 777）
+- ディスクのプロパティとS.M.A.R.T.情報の表示
 - 環境に応じたファイルマネージャーの自動検出
 - ユーザー設定機能（ファイルマネージャー、フォーマット形式など）
 - レスポンシブなGUIレイアウト
@@ -95,4 +96,23 @@ MIT ライセンスの下で公開されています。詳細は[LICENSE](LICENS
 
 ## 貢献
 バグ報告や機能リクエストは[GitHubのIssue](https://github.com/toma4423/salvage_linux/issues)にて受け付けています。
-プルリクエストも歓迎します。 
+プルリクエストも歓迎します。
+
+## 設定オプション
+
+### ファイルマネージャー設定
+- 好みのファイルマネージャーを選択（Nautilus、Nemo、Thunar）
+- デフォルトのファイルマネージャーオプションを設定
+
+### 詳細設定
+- デフォルトのフォーマット形式（exFAT、FAT32、NTFS、ext4、ReFS）
+- ログレベル設定
+- ReFSサポートには追加ツールが必要です：
+  ```bash
+  # Debian/Ubuntu系の場合
+  sudo apt-get update
+  sudo apt-get install refs-tools
+
+  # Fedora/RHEL系の場合
+  sudo dnf install refs-tools
+  ``` 

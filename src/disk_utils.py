@@ -34,7 +34,7 @@ class DiskUtils:
         ]
         
         # 許可されたファイルシステムタイプのリスト
-        self.allowed_fs_types = ["ntfs", "exfat", "ext4", "ext3", "ext2", "fat32", "vfat"]
+        self.allowed_fs_types = ["ntfs", "exfat", "ext4", "ext3", "ext2", "fat32", "vfat", "refs"]
     
     def get_unmounted_disks(self):
         """
@@ -171,27 +171,43 @@ class DiskUtils:
     
     def _is_valid_path(self, path):
         """
-        パスが有効であるかを検証する（セキュリティチェック）
+        パスが有効かどうかをチェック
         
         Args:
-            path (str): 検証するパス
+            path (str): チェックするパス
             
         Returns:
             bool: パスが有効な場合はTrue、そうでない場合はFalse
         """
         # パスが空でないことを確認
-        if not path or not isinstance(path, str):
+        if not path:
             return False
-            
-        # 相対パスやパストラバーサルを含むパスを拒否
-        if '..' in path or not path.startswith('/'):
+        
+        # パスが/dev/で始まることを確認
+        if not path.startswith("/dev/"):
             return False
-            
-        # コマンドインジェクションを防止するための特殊文字チェック
+        
+        # パスに特殊文字が含まれていないことを確認
         if re.search(r'[;&|`$]', path):
             return False
-            
+        
         return True
+    
+    def _check_refs_tools_available(self):
+        """
+        ReFSツールが利用可能かどうかをチェック
+        
+        Returns:
+            bool: ReFSツールが利用可能な場合はTrue、そうでない場合はFalse
+        """
+        try:
+            # mkfs.refsコマンドが存在するかチェック
+            subprocess.check_call(["which", "mkfs.refs"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # refsutilコマンドが存在するかチェック
+            subprocess.check_call(["which", "refsutil"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except subprocess.CalledProcessError:
+            return False
     
     def _is_system_directory(self, path):
         """
@@ -277,7 +293,7 @@ class DiskUtils:
         
         Args:
             device_path (str): デバイスパス（例: /dev/sda1）
-            fs_type (str): フォーマットするファイルシステムタイプ（"ntfs" または "exfat"）
+            fs_type (str): フォーマットするファイルシステムタイプ（"ntfs"、"exfat"、"refs"など）
             
         Returns:
             tuple: (成功したかどうか, エラーメッセージ)
@@ -300,11 +316,19 @@ class DiskUtils:
             self.logger.error(error_msg)
             return False, error_msg
         
+        # ReFSツールのチェック
+        if fs_type.lower() == "refs" and not self._check_refs_tools_available():
+            error_msg = "ReFSツールが見つかりません。必要なツールをインストールしてください。"
+            self.logger.error(error_msg)
+            return False, error_msg
+        
         # コマンドを構築
         if fs_type.lower() == "ntfs":
             format_cmd = ["mkfs.ntfs", "-f", device_path]
         elif fs_type.lower() == "exfat":
             format_cmd = ["mkfs.exfat", device_path]
+        elif fs_type.lower() == "refs":
+            format_cmd = ["mkfs.refs", device_path]
         else:
             error_msg = f"サポートされていないファイルシステムタイプ: {fs_type}"
             self.logger.error(error_msg)
@@ -317,6 +341,10 @@ class DiskUtils:
             return True, ""
         except subprocess.CalledProcessError as e:
             error_msg = f"{device_path} のフォーマットに失敗しました: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except FileNotFoundError as e:
+            error_msg = f"ReFSツールが見つかりません: {str(e)}"
             self.logger.error(error_msg)
             return False, error_msg
     

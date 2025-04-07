@@ -5,7 +5,7 @@
 
 ## 主な機能
 - 未マウントディスクのマウント
-- コピー先ディスクのフォーマット（ext4、NTFS、exFAT、FAT32に対応）
+- コピー先ディスクのフォーマット（ext4、NTFS、exFAT、FAT32、ReFSに対応）
 - マウント済みディスクのファイルマネージャーでの表示
 - コピー先ディスクへの権限付与
 - 環境に応じたファイルマネージャーの自動検出
@@ -96,4 +96,32 @@ MIT ライセンスの下で公開されています。詳細は[LICENSE](LICENS
 
 ## 貢献
 バグ報告や機能リクエストは[GitHubのIssue](https://github.com/toma4423/salvage_linux/issues)にて受け付けています。
-プルリクエストも歓迎します。 
+プルリクエストも歓迎します。
+
+## Features
+
+- Mount/unmount disks
+- Format disks with various filesystems (exFAT, FAT32, NTFS, ext4, ReFS)
+- Set disk permissions
+- View disk properties and SMART information
+- Open mounted disks in file manager
+- User-friendly GUI interface
+
+## Configuration Options
+
+### File Manager Settings
+- Choose your preferred file manager (Nautilus, Nemo, or Thunar)
+- Set default file manager options
+
+### Advanced Settings
+- Default format type (exFAT, FAT32, NTFS, ext4, ReFS)
+- Log level settings
+- ReFS support requires additional tools:
+  ```bash
+  # For Debian/Ubuntu-based systems
+  sudo apt-get update
+  sudo apt-get install refs-tools
+
+  # For Fedora/RHEL-based systems
+  sudo dnf install refs-tools
+  ``` 

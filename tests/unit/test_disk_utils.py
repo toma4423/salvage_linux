@@ -296,6 +296,80 @@ class TestDiskUtils:
         assert mock_logger.info.called
     
     @patch('subprocess.check_call')
+    def test_format_disk_refs_success(self, mock_check_call, disk_utils, mock_logger):
+        """ReFSフォーマット成功のテスト"""
+        # パスのバリデーションとシステムディレクトリチェックをモック
+        disk_utils._is_valid_path = MagicMock(return_value=True)
+        disk_utils._is_system_directory = MagicMock(return_value=False)
+        
+        # メソッドを実行
+        success, error_msg = disk_utils.format_disk("/dev/sda1", "refs")
+        
+        # 結果を検証
+        assert success is True
+        assert error_msg == ""
+        
+        # フォーマットコマンドが正しく呼び出されたことを確認
+        mock_check_call.assert_called()
+        
+        # 正しいコマンドが使用されたことを確認
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == "mkfs.refs"
+        assert args[1] == "/dev/sda1"
+        
+        # ログが記録されたことを確認
+        assert mock_logger.info.called
+    
+    @patch('subprocess.check_call')
+    def test_format_disk_refs_tools_missing(self, mock_check_call, disk_utils, mock_logger):
+        """ReFSツールが存在しない場合のテスト"""
+        # パスのバリデーションとシステムディレクトリチェックをモック
+        disk_utils._is_valid_path = MagicMock(return_value=True)
+        disk_utils._is_system_directory = MagicMock(return_value=False)
+        
+        # コマンド実行時にエラーを発生させる
+        mock_check_call.side_effect = FileNotFoundError("No such file or directory: 'mkfs.refs'")
+        
+        # メソッドを実行
+        success, error_msg = disk_utils.format_disk("/dev/sda1", "refs")
+        
+        # 結果を検証
+        assert success is False
+        assert "ReFSツールが見つかりません" in error_msg or "mkfs.refs" in error_msg
+        
+        # エラーログが記録されたことを確認
+        assert mock_logger.error.called
+    
+    @patch('subprocess.check_call')
+    def test_check_refs_tools_available_success(self, mock_check_call, disk_utils):
+        """ReFSツールが利用可能な場合のテスト"""
+        # メソッドを実行
+        result = disk_utils._check_refs_tools_available()
+        
+        # 結果を検証
+        assert result is True
+        
+        # whichコマンドが2回呼び出されたことを確認（mkfs.refsとrefsutil）
+        assert mock_check_call.call_count == 2
+        
+        # 正しいコマンドが使用されたことを確認
+        calls = mock_check_call.call_args_list
+        assert calls[0][0][0] == ["which", "mkfs.refs"]
+        assert calls[1][0][0] == ["which", "refsutil"]
+    
+    @patch('subprocess.check_call')
+    def test_check_refs_tools_available_failure(self, mock_check_call, disk_utils):
+        """ReFSツールが利用できない場合のテスト"""
+        # コマンド実行時にエラーを発生させる
+        mock_check_call.side_effect = subprocess.CalledProcessError(1, "which")
+        
+        # メソッドを実行
+        result = disk_utils._check_refs_tools_available()
+        
+        # 結果を検証
+        assert result is False
+    
+    @patch('subprocess.check_call')
     def test_format_disk_unsupported_fs(self, mock_check_call, disk_utils, mock_logger):
         """サポートされていないファイルシステムのテスト"""
         # パスのバリデーションとシステムディレクトリチェックをモック

@@ -300,6 +300,9 @@ class DiskPropertiesAnalyzer:
                 elif result["fstype"] == "exfat":
                     # exFATにはfatresize -iなどを使用
                     cmd = ["fatresize", "-i", device_path]
+                elif result["fstype"] == "refs":
+                    # ReFSのチェックコマンド
+                    cmd = ["refsutil", "check", device_path]
                 
                 # コマンド実行（標準エラー出力も取得）
                 process = subprocess.run(cmd, capture_output=True, text=True, check=False)

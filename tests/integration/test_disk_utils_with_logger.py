@@ -96,24 +96,56 @@ class TestDiskUtilsWithLogger:
     
     @patch('subprocess.check_call')
     def test_format_disk_logged(self, mock_check_call, logger_and_disk_utils):
-        """フォーマットが正しくログに記録されるかテスト"""
+        """フォーマット操作のログが正しく記録されるかテスト"""
         logger, disk_utils, log_dir = logger_and_disk_utils
         
-        # システムディレクトリ判定をオーバーライド
-        disk_utils._is_system_directory = lambda x: False
+        # パスのバリデーションとシステムディレクトリチェックをモック
+        disk_utils._is_valid_path = MagicMock(return_value=True)
+        disk_utils._is_system_directory = MagicMock(return_value=False)
         
-        # メソッドを実行
-        disk_utils.format_disk("/dev/sda1", "ntfs")
+        # フォーマット操作を実行
+        disk_utils.format_disk("/dev/sda1", "exfat")
         
         # ログファイルを確認
-        log_files = os.listdir(log_dir)
-        assert len(log_files) > 0  # ログファイルが存在することを確認
-        
-        # ログの内容を確認
-        log_file_path = os.path.join(log_dir, log_files[0])
-        with open(log_file_path, 'r') as f:
+        with open(logger.log_file, 'r') as f:
             log_content = f.read()
-            assert "フォーマット" in log_content
+        
+        # ログにフォーマット操作が記録されていることを確認
+        assert "フォーマット中" in log_content
+        assert "フォーマット成功" in log_content
+        assert "/dev/sda1" in log_content
+        assert "exfat" in log_content
+    
+    @patch('subprocess.check_call')
+    def test_format_disk_refs_logged(self, mock_check_call, logger_and_disk_utils):
+        """ReFSフォーマット操作のログが正しく記録されるかテスト"""
+        logger, disk_utils, log_dir = logger_and_disk_utils
+        
+        # パスのバリデーションとシステムディレクトリチェックをモック
+        disk_utils._is_valid_path = MagicMock(return_value=True)
+        disk_utils._is_system_directory = MagicMock(return_value=False)
+        
+        # ReFSツールの存在チェックをモック
+        disk_utils._check_refs_tools_available = MagicMock(return_value=True)
+        
+        # フォーマット操作を実行
+        disk_utils.format_disk("/dev/sda1", "refs")
+        
+        # ログファイルを確認
+        with open(logger.log_file, 'r') as f:
+            log_content = f.read()
+        
+        # ログにフォーマット操作が記録されていることを確認
+        assert "フォーマット中" in log_content
+        assert "フォーマット成功" in log_content
+        assert "/dev/sda1" in log_content
+        assert "refs" in log_content
+        
+        # 正しいコマンドが使用されたことを確認
+        mock_check_call.assert_called()
+        args = mock_check_call.call_args[0][0]
+        assert args[0] == "mkfs.refs"
+        assert args[1] == "/dev/sda1"
     
     @patch('subprocess.check_call')
     def test_set_permissions_logged(self, mock_check_call, logger_and_disk_utils):

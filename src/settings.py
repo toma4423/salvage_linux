@@ -282,7 +282,8 @@ class SettingsDialog:
             ("exFAT（推奨）", "exfat"),
             ("FAT32", "vfat"),
             ("NTFS", "ntfs"),
-            ("ext4", "ext4")
+            ("ext4", "ext4"),
+            ("ReFS", "refs")
         ]
         
         # ラジオボタンでフォーマット形式を選択
